@@ -1,0 +1,9 @@
+:root {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --primary: 12 88% 54%; /* El naranja #f04e23 */
+  --secondary: 240 3.7% 15.9%;
+  --accent: 142 70% 45%; /* El verde #4CAF50 */
+  --destructive: 0 84.2% 60.2%;
+  --radius: 0.75rem;
+}
