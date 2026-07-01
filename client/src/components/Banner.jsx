@@ -3,10 +3,10 @@ import imagenBanner from '../assets/banner.png';
 
 function Banner() {
     const hacerScrollAlMenu = () => {
-        window.scrollTo({
-            top: window.innerHeight * 0.8,
-            behavior: 'smooth'
-        });
+        const seccionMenu = document.getElementById('catalogo-menu');
+        if (seccionMenu) {
+            seccionMenu.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     };
 
     return (

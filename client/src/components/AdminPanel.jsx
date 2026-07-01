@@ -203,6 +203,64 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
     const facturacionTotal = misPedidos.reduce((acc, p) => acc + parseFloat(p.total), 0);
     const volumenVentas = misPedidos.length;
 
+    const pendientes = misPedidos.filter(p => p.estado === 'Pendiente');
+    const enviados = misPedidos.filter(p => p.estado === 'Enviado');
+    const rechazados = misPedidos.filter(p => p.estado === 'Rechazado');
+
+    const renderTablaPedidos = (listaPedidos) => (
+        <div style={{ overflowX: 'auto' }}>
+            <table style={estilos.tabla}>
+                <thead>
+                    <tr style={estilos.filaHeader}>
+                        <th style={estilos.celdaHeader}>ID Pedido</th>
+                        {rol === 'admin' && <th style={estilos.celdaHeader}>Cliente</th>}
+                        <th style={estilos.celdaHeader}>Fecha</th>
+                        <th style={estilos.celdaHeader}>Productos</th>
+                        <th style={estilos.celdaHeader}>Monto</th>
+                        <th style={estilos.celdaHeader}>Estado</th>
+                        <th style={estilos.celdaHeader}>Operación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {listaPedidos.map(pedido => {
+                        let productos = [];
+                        try { productos = JSON.parse(pedido.productos); } catch (e) {}
+                        return (
+                            <tr key={pedido.id} style={estilos.filaBody}>
+                                <td style={{ ...estilos.celdaBody, fontWeight: '600' }}>#{pedido.id}</td>
+                                {rol === 'admin' && (
+                                    <td style={estilos.celdaBody}>{pedido.usuario?.nombre || `ID: ${pedido.usuarioId}`}</td>
+                                )}
+                                <td style={estilos.celdaBody}>{new Date(pedido.createdAt).toLocaleDateString('es-AR')}</td>
+                                <td style={{ ...estilos.celdaBody, maxWidth: '200px', fontSize: '0.85rem' }}>
+                                    {productos.length > 0
+                                        ? productos.map(p => `${p.nombre} x${p.cantidad}`).join(', ')
+                                        : '-'
+                                    }
+                                </td>
+                                <td style={{ ...estilos.celdaBody, fontWeight: '600' }}>${pedido.total}</td>
+                                <td style={estilos.celdaBody}>
+                                    <span style={obtenerEstiloBadge(pedido.estado)}>{pedido.estado}</span>
+                                </td>
+                                <td style={estilos.celdaBody}>
+                                    <select
+                                        value={pedido.estado}
+                                        onChange={(e) => cambiarEstadoPedido(pedido.id, e.target.value)}
+                                        style={estilos.selectPequeno}
+                                    >
+                                        <option value="Pendiente">Pendiente</option>
+                                        <option value="Enviado">Enviado</option>
+                                        <option value="Rechazado">Rechazado</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+
     const tabs = [
         { key: 'inventario', label: 'Gestión de Menú' },
         { key: 'dashboard', label: 'Dashboard de Ventas' }
@@ -332,56 +390,37 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
 
                     <div style={estilos.panelBlanco}>
                         <h3 style={estilos.tituloSeccion}>Control de Comandas Recibidas</h3>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={estilos.tabla}>
-                                <thead>
-                                    <tr style={estilos.filaHeader}>
-                                        <th style={estilos.celdaHeader}>ID Pedido</th>
-                                        {rol === 'admin' && <th style={estilos.celdaHeader}>Cliente</th>}
-                                        <th style={estilos.celdaHeader}>Fecha</th>
-                                        <th style={estilos.celdaHeader}>Productos</th>
-                                        <th style={estilos.celdaHeader}>Monto</th>
-                                        <th style={estilos.celdaHeader}>Estado</th>
-                                        <th style={estilos.celdaHeader}>Operación</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {misPedidos.map(pedido => {
-                                        let productos = [];
-                                        try { productos = JSON.parse(pedido.productos); } catch (e) {}
-                                        return (
-                                            <tr key={pedido.id} style={estilos.filaBody}>
-                                                <td style={{ ...estilos.celdaBody, fontWeight: '600' }}>#{pedido.id}</td>
-                                                {rol === 'admin' && (
-                                                    <td style={estilos.celdaBody}>{pedido.usuario?.nombre || `ID: ${pedido.usuarioId}`}</td>
-                                                )}
-                                                <td style={estilos.celdaBody}>{new Date(pedido.createdAt).toLocaleDateString('es-AR')}</td>
-                                                <td style={{ ...estilos.celdaBody, maxWidth: '200px', fontSize: '0.85rem' }}>
-                                                    {productos.length > 0
-                                                        ? productos.map(p => `${p.nombre} x${p.cantidad}`).join(', ')
-                                                        : '-'
-                                                    }
-                                                </td>
-                                                <td style={{ ...estilos.celdaBody, fontWeight: '600' }}>${pedido.total}</td>
-                                                <td style={estilos.celdaBody}>
-                                                    <span style={obtenerEstiloBadge(pedido.estado)}>{pedido.estado}</span>
-                                                </td>
-                                                <td style={estilos.celdaBody}>
-                                                    <select
-                                                        value={pedido.estado}
-                                                        onChange={(e) => cambiarEstadoPedido(pedido.id, e.target.value)}
-                                                        style={estilos.selectPequeno}
-                                                    >
-                                                        <option value="Pendiente">Pendiente</option>
-                                                        <option value="Enviado">Enviado</option>
-                                                        <option value="Rechazado">Rechazado</option>
-                                                    </select>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                            {/* SECCIÓN 1: PENDIENTES */}
+                            <div style={{ borderLeft: '4px solid #f57c00', paddingLeft: '16px' }}>
+                                <h4 style={{ margin: '0 0 16px 0', color: '#f57c00', fontSize: '1.1rem', fontWeight: '600' }}>Comandas Pendientes</h4>
+                                {pendientes.length === 0 ? (
+                                    <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos pendientes.</p>
+                                ) : (
+                                    renderTablaPedidos(pendientes)
+                                )}
+                            </div>
+
+                            {/* SECCIÓN 2: ENVIADOS */}
+                            <div style={{ borderLeft: '4px solid #388e3c', paddingLeft: '16px' }}>
+                                <h4 style={{ margin: '0 0 16px 0', color: '#388e3c', fontSize: '1.1rem', fontWeight: '600' }}>Historial: Enviados</h4>
+                                {enviados.length === 0 ? (
+                                    <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos enviados.</p>
+                                ) : (
+                                    renderTablaPedidos(enviados)
+                                )}
+                            </div>
+
+                            {/* SECCIÓN 3: RECHAZADOS */}
+                            <div style={{ borderLeft: '4px solid #757575', paddingLeft: '16px' }}>
+                                <h4 style={{ margin: '0 0 16px 0', color: '#757575', fontSize: '1.1rem', fontWeight: '600' }}>Historial: Rechazados</h4>
+                                {rechazados.length === 0 ? (
+                                    <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos rechazados.</p>
+                                ) : (
+                                    renderTablaPedidos(rechazados)
+                                )}
+                            </div>
                         </div>
                     </div>
                 </>

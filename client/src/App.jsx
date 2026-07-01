@@ -94,6 +94,11 @@ function App() {
 
   const esVendedor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin';
 
+  const platosFiltrados = platos.filter(plato => 
+    plato.nombre.toLowerCase().includes(busqueda.toLowerCase()) || 
+    (plato.categoria && plato.categoria.toLowerCase().includes(busqueda.toLowerCase()))
+  );
+
   return (
     <div style={{ backgroundColor: '#fdfdfd', minHeight: '100vh', fontFamily: "'Poppins', sans-serif", display: 'flex', flexDirection: 'column' }}>
       <Navbar
@@ -134,7 +139,7 @@ function App() {
         ) : platoSeleccionado && usuario ? (
           <DetalleProducto plato={platoSeleccionado} alCerrar={() => setPlatoSeleccionado(null)} alAgregar={agregarAlCarrito} obtenerImagenReal={obtenerImagenReal} usuario={usuario} token={token} onRefreshPlatos={() => buscarPlatos(busqueda, categoriaActiva)} />
         ) : (
-          <main>
+          <main id="catalogo-menu">
             <h3 style={{ fontWeight: '600', marginBottom: '24px', color: '#212121', fontSize: '1.5rem' }}>Explorar Menú</h3>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '40px', overflowX: 'auto', paddingBottom: '10px' }}>
               {['Todos', 'Pizzas', 'Hamburguesas', 'Empanadas', 'Parrilla', 'Sushi', 'Vegano', 'Postres'].map(cat => (
@@ -159,14 +164,14 @@ function App() {
               <div style={{ textAlign: 'center', padding: '60px 0', color: '#757575' }}>
                 <p style={{ fontSize: '1rem', fontWeight: '500' }}>Cargando platos...</p>
               </div>
-            ) : platos.length === 0 ? (
+            ) : platosFiltrados.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: '#757575' }}>
                 <p style={{ fontSize: '1.1rem', fontWeight: '500' }}>No se encontraron platos</p>
                 <p style={{ fontSize: '0.9rem' }}>Probá con otra búsqueda o categoría</p>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '32px' }}>
-                {platos.map(plato => (
+                {platosFiltrados.map(plato => (
                   <div key={plato.id} onClick={() => manejarIntencionCompra('detalle', plato)} style={estiloCard}>
                     <div style={{
                       height: '200px', overflow: 'hidden', backgroundColor: '#f9f9f9',

@@ -67,7 +67,13 @@ function Navbar({
                             type="text"
                             placeholder="Buscar en el menú..."
                             value={busqueda}
-                            onChange={(e) => setBusqueda(e.target.value)}
+                            onChange={(e) => {
+                                setBusqueda(e.target.value);
+                                document.getElementById('catalogo-menu')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }}
+                            onFocus={() => {
+                                document.getElementById('catalogo-menu')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }}
                             style={estiloInputBusqueda}
                         />
                     </div>
@@ -235,7 +241,7 @@ const estiloContenedor = {
     maxWidth: '1300px', 
     margin: '0 auto', 
     display: 'grid', 
-    gridTemplateColumns: '1fr 1.5fr 1fr', 
+    gridTemplateColumns: '1fr 1.2fr 1.5fr', 
     alignItems: 'center', 
     padding: '0 24px' 
 };
@@ -264,7 +270,10 @@ const estiloBuscadorCentrado = {
     display: 'flex', 
     alignItems: 'center', 
     border: '1px solid #eeeeee',
-    transition: 'background-color 0.3s ease'
+    transition: 'background-color 0.3s ease',
+    maxWidth: '400px',
+    margin: '0 auto',
+    width: '100%'
 };
 const estiloInputBusqueda = { 
     border: 'none', 
@@ -350,7 +359,8 @@ const estiloContenedorCampana = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    height: '40px'
+    height: '40px',
+    marginLeft: '12px'
 };
 
 const estiloBadgeNotificacion = {
