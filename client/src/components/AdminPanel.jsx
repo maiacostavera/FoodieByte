@@ -73,6 +73,7 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
             const res = await axios.get('http://localhost:3000/api/admin/estadisticas', {
                 headers: { 'authorization': `Bearer ${token}` }
             });
+            console.log("Respuesta de /api/admin/estadisticas:", res.data);
             setEstadisticasAdmin(res.data);
         } catch (err) {
             console.error("Error cargando estadísticas admin", err);
@@ -269,6 +270,8 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
         tabs.push({ key: 'usuarios', label: 'Gestión de Usuarios' });
     }
 
+    console.log("Datos recibidos en estadísticas:", estadisticasAdmin);
+
     return (
         <div style={estilos.contenedorPrincipal}>
 
@@ -282,23 +285,19 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                 <div style={estilos.gridKPIs}>
                     <div style={estilos.cardKPI}>
                         <span style={estilos.labelKPI}>Usuarios Totales</span>
-                        <strong style={estilos.valorKPI}>{estadisticasAdmin.totalUsuarios}</strong>
-                        <span style={estilos.subKPI}>{estadisticasAdmin.totalFoodies} clientes / {estadisticasAdmin.totalVendedores} vendedores</span>
+                        <strong style={estilos.valorKPI}>{estadisticasAdmin?.usuariosTotales || 0}</strong>
                     </div>
                     <div style={estilos.cardKPI}>
                         <span style={estilos.labelKPI}>Platos Publicados</span>
-                        <strong style={estilos.valorKPI}>{estadisticasAdmin.totalPlatos}</strong>
+                        <strong style={estilos.valorKPI}>{estadisticasAdmin?.platosPublicados || 0}</strong>
                     </div>
                     <div style={estilos.cardKPI}>
-                        <span style={estilos.labelKPI}>Total Facturado</span>
-                        <strong style={{ ...estilos.valorKPI, color: '#d32f2f' }}>${estadisticasAdmin.totalFacturado.toFixed(2)}</strong>
+                        <span style={estilos.labelKPI}>Locales en la Plataforma</span>
+                        <strong style={estilos.valorKPI}>{estadisticasAdmin?.localesActivos || 0}</strong>
                     </div>
                     <div style={estilos.cardKPI}>
-                        <span style={estilos.labelKPI}>Pedidos</span>
-                        <strong style={estilos.valorKPI}>{estadisticasAdmin.totalPedidos}</strong>
-                        <span style={estilos.subKPI}>
-                            {estadisticasAdmin.pedidosPendientes} pendientes / {estadisticasAdmin.pedidosEnviados} enviados
-                        </span>
+                        <span style={estilos.labelKPI}>Pedidos Enviados</span>
+                        <strong style={estilos.valorKPI}>{estadisticasAdmin?.pedidosEnviados || 0}</strong>
                     </div>
                 </div>
             )}
@@ -582,11 +581,10 @@ const estilos = {
     botonPrimario: { backgroundColor: '#d32f2f', color: '#ffffff', border: 'none', padding: '12px 24px', borderRadius: '4px', fontWeight: '600', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", transition: 'background-color 0.2s ease' },
     botonSecundario: { backgroundColor: 'transparent', color: '#757575', border: '1px solid #e0e0e0', padding: '12px 24px', borderRadius: '4px', fontWeight: '500', cursor: 'pointer', fontFamily: "'Poppins', sans-serif" },
 
-    gridKPIs: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' },
-    cardKPI: { backgroundColor: '#ffffff', padding: '24px', borderRadius: '8px', border: '1px solid #e0e0e0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' },
-    labelKPI: { color: '#757575', fontSize: '0.85rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' },
-    valorKPI: { color: '#212121', fontSize: '1.8rem', fontWeight: '700' },
-    subKPI: { color: '#9e9e9e', fontSize: '0.8rem', fontWeight: '400' },
+    gridKPIs: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' },
+    cardKPI: { backgroundColor: '#ffffff', padding: '24px', borderRadius: '8px', border: '1px solid #e0e0e0', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '6px' },
+    labelKPI: { color: '#757575', fontSize: '0.9rem', fontWeight: '500' },
+    valorKPI: { color: '#1976d2', fontSize: '2rem', fontWeight: '600' },
 
     panelBlanco: { backgroundColor: '#ffffff', padding: '30px', borderRadius: '8px', border: '1px solid #e0e0e0', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', marginBottom: '30px' },
     tituloSeccion: { margin: '0 0 24px 0', color: '#212121', fontSize: '1.2rem', fontWeight: '600' },

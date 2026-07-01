@@ -124,27 +124,23 @@ router.get('/pedidos', esAdmin, async (req, res) => {
 // ESTADÍSTICAS GLOBALES (ADMIN)
 router.get('/estadisticas', esAdmin, async (req, res) => {
     try {
-        const totalUsuarios = await Usuario.count();
-        const totalVendedores = await Usuario.count({ where: { rol: 'vendedor' } });
-        const totalFoodies = await Usuario.count({ where: { rol: 'foodie' } });
-        const totalPlatos = await Plato.count();
-        const totalPedidos = await Pedido.count();
-        const totalFacturado = await Pedido.sum('total', { where: { estado: 'Enviado' } }) || 0;
-
-        const pedidosPendientes = await Pedido.count({ where: { estado: 'Pendiente' } });
+        const usuariosTotales = await Usuario.count();
+        console.log('Usuarios contados:', usuariosTotales);
+        
+        const platosPublicados = await Plato.count();
+        console.log('Platos contados:', platosPublicados);
+        
+        const localesActivos = await Usuario.count({ where: { rol: 'vendedor' } });
+        console.log('Locales contados:', localesActivos);
+        
         const pedidosEnviados = await Pedido.count({ where: { estado: 'Enviado' } });
-        const pedidosRechazados = await Pedido.count({ where: { estado: 'Rechazado' } });
-
-        const platosEnAlerta = await Plato.findAll({
-            where: { stock: { [Op.lt]: 5 } },
-            attributes: ['id', 'nombre', 'stock']
-        });
+        console.log('Pedidos contados:', pedidosEnviados);
 
         res.json({
-            totalUsuarios, totalVendedores, totalFoodies,
-            totalPlatos, totalPedidos, totalFacturado,
-            pedidosPendientes, pedidosEnviados, pedidosRechazados,
-            platosEnAlerta
+            usuariosTotales,
+            platosPublicados,
+            localesActivos,
+            pedidosEnviados
         });
     } catch (err) {
         console.error("Error al obtener estadísticas:", err);
