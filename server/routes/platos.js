@@ -53,9 +53,17 @@ router.get('/', async (req, res) => {
 // CREAR PLATO
 router.post('/', uploadPlato.single('imagen'), async (req, res) => {
     try {
+        const tokenHeader = req.headers.authorization;
+        if (!tokenHeader) return res.status(401).json({ mensaje: 'No autorizado.' });
+
+        const decoded = jwt.verify(tokenHeader.split(' ')[1], 'secret_key_foodiebyte');
+        if (!['vendedor', 'admin'].includes(decoded.rol)) {
+            return res.status(403).json({ mensaje: 'Acceso denegado.' });
+        }
+
         const {
             nombre, descripcion, precio, categoria,
-            stock, tiempo_prep, es_vegano, es_sintacc, vendedorId
+            stock, tiempo_prep, es_vegano, es_sintacc
         } = req.body;
 
         if (!nombre || !precio || stock < 1) {
@@ -67,6 +75,8 @@ router.post('/', uploadPlato.single('imagen'), async (req, res) => {
         }
 
         const imagenUrl = req.file ? `/uploads/platos/${req.file.filename}` : req.body.imagenUrl;
+        // Asignación estricta de propiedad (multitenencia)
+        const vendedorId = decoded.rol === 'admin' && req.body.vendedorId ? req.body.vendedorId : decoded.id;
 
         const nuevoPlato = await Plato.create({
             nombre, descripcion, precio, categoria, stock,
@@ -86,13 +96,29 @@ router.post('/', uploadPlato.single('imagen'), async (req, res) => {
 // ACTUALIZAR PLATO
 router.put('/:id', uploadPlato.single('imagen'), async (req, res) => {
     try {
+        const tokenHeader = req.headers.authorization;
+        if (!tokenHeader) return res.status(401).json({ mensaje: 'No autorizado.' });
+
+        const decoded = jwt.verify(tokenHeader.split(' ')[1], 'secret_key_foodiebyte');
+        if (!['vendedor', 'admin'].includes(decoded.rol)) {
+            return res.status(403).json({ mensaje: 'Acceso denegado.' });
+        }
+
         const { id } = req.params;
         const plato = await Plato.findByPk(id);
-        if (!plato) return res.status(404).json({ mensaje: "No encontrado" });
+        if (!plato) return res.status(404).json({ mensaje: 'Plato no encontrado' });
+
+        // El admin puede tocar todo, el vendedor solo lo suyo:
+        if (decoded.rol !== 'admin' && plato.vendedorId !== decoded.id) {
+            return res.status(403).json({ mensaje: 'Acceso denegado: No tienes permisos sobre este producto.' });
+        }
 
         let updateData = { ...req.body };
         if (req.file) {
             updateData.imagenUrl = `/uploads/platos/${req.file.filename}`;
+        }
+        if (decoded.rol !== 'admin') {
+            delete updateData.vendedorId;
         }
 
         await plato.update(updateData);
@@ -148,10 +174,11 @@ router.delete('/:id', async (req, res) => {
         }
 
         const plato = await Plato.findByPk(req.params.id);
-        if (!plato) return res.status(404).json({ mensaje: "Plato no encontrado." });
+        if (!plato) return res.status(404).json({ mensaje: 'Plato no encontrado.' });
 
-        if (decoded.rol === 'vendedor' && plato.vendedorId !== decoded.id) {
-            return res.status(403).json({ mensaje: 'Solo podés eliminar tus propios platos.' });
+        // El admin puede tocar todo, el vendedor solo lo suyo:
+        if (decoded.rol !== 'admin' && plato.vendedorId !== decoded.id) {
+            return res.status(403).json({ mensaje: 'Acceso denegado: No tienes permisos sobre este producto.' });
         }
 
         await plato.destroy();

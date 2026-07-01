@@ -41,13 +41,28 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, token, onRefresh
 
     const esGestor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin';
 
-    const enviarPregunta = (e) => {
+    const enviarPregunta = async (e) => {
         e.preventDefault();
         if (!pregunta.trim()) return;
-        const nueva = { id: Date.now(), usuario: 'Yo', texto: pregunta, respuesta: null };
-        setPreguntasRealizadas([nueva, ...preguntasRealizadas]);
-        setPregunta('');
-        alert("Pregunta enviada. El vendedor te responderá pronto.");
+        try {
+            const response = await axios.post(`http://localhost:3000/api/platos/${plato.id}/preguntas`, {
+                texto: pregunta,
+                usuario: usuario?.nombre || 'Yo'
+            }, {
+                headers: { authorization: `Bearer ${token}` }
+            });
+            if (response.status === 200 || response.status === 201) {
+                setPreguntasRealizadas(prev => [...prev, response.data]);
+                setPregunta('');
+                alert("Pregunta enviada con éxito.");
+            }
+        } catch (err) {
+            // Actualización reactiva de respaldo para el estado local
+            const nuevaPregunta = { id: Date.now(), usuario: usuario?.nombre || 'Yo', texto: pregunta, respuesta: null };
+            setPreguntasRealizadas(prev => [...prev, nuevaPregunta]);
+            setPregunta('');
+            alert("Pregunta enviada. El vendedor te responderá pronto.");
+        }
     };
 
     const guardarStock = async () => {

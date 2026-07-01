@@ -6,6 +6,7 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
     const [misPedidos, setMisPedidos] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
     const [estadisticasAdmin, setEstadisticasAdmin] = useState(null);
+    const [comisionesVendedores, setComisionesVendedores] = useState([]);
 
     const [vistaActiva, setVistaActiva] = useState('inventario');
 
@@ -25,6 +26,7 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
         if (rol === 'admin') {
             fetchUsuarios();
             fetchEstadisticasAdmin();
+            fetchComisionesVendedores();
         }
     }, [rol]);
 
@@ -77,6 +79,17 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
             setEstadisticasAdmin(res.data);
         } catch (err) {
             console.error("Error cargando estadísticas admin", err);
+        }
+    };
+
+    const fetchComisionesVendedores = async () => {
+        try {
+            const res = await axios.get('http://localhost:3000/api/admin/comisiones-vendedores', {
+                headers: { 'authorization': `Bearer ${token}` }
+            });
+            setComisionesVendedores(res.data);
+        } catch (err) {
+            console.error("Error cargando comisiones:", err);
         }
     };
 
@@ -204,6 +217,9 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
     const facturacionTotal = misPedidos.reduce((acc, p) => acc + parseFloat(p.total), 0);
     const volumenVentas = misPedidos.length;
 
+    // Filtro estricto de multitenencia: El vendedor solo ve sus platos, el admin ve todo
+    const misPlatosFiltrados = rol === 'admin' ? misPlatos : misPlatos.filter(plato => String(plato.vendedorId) === String(vendedorId) || String(plato.usuarioId) === String(vendedorId));
+
     const pendientes = misPedidos.filter(p => p.estado === 'Pendiente');
     const enviados = misPedidos.filter(p => p.estado === 'Enviado');
     const rechazados = misPedidos.filter(p => p.estado === 'Rechazado');
@@ -244,15 +260,21 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                                     <span style={obtenerEstiloBadge(pedido.estado)}>{pedido.estado}</span>
                                 </td>
                                 <td style={estilos.celdaBody}>
-                                    <select
-                                        value={pedido.estado}
-                                        onChange={(e) => cambiarEstadoPedido(pedido.id, e.target.value)}
-                                        style={estilos.selectPequeno}
-                                    >
-                                        <option value="Pendiente">Pendiente</option>
-                                        <option value="Enviado">Enviado</option>
-                                        <option value="Rechazado">Rechazado</option>
-                                    </select>
+                                    {rol === 'vendedor' ? (
+                                        <select
+                                            value={pedido.estado}
+                                            onChange={(e) => cambiarEstadoPedido(pedido.id, e.target.value)}
+                                            style={estilos.selectPequeno}
+                                        >
+                                            <option value="Pendiente">Pendiente</option>
+                                            <option value="Enviado">Enviado</option>
+                                            <option value="Rechazado">Rechazado</option>
+                                        </select>
+                                    ) : (
+                                        <span style={{ fontWeight: '600', color: '#757575', fontSize: '0.85rem', backgroundColor: '#f5f5f5', padding: '6px 12px', borderRadius: '4px', display: 'inline-block' }}>
+                                            {pedido.estado}
+                                        </span>
+                                    )}
                                 </td>
                             </tr>
                         );
@@ -274,12 +296,10 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
 
     return (
         <div style={estilos.contenedorPrincipal}>
-
             <div style={estilos.cabecera}>
                 <h2 style={estilos.tituloPrincipal}>Panel de Gestión</h2>
                 {rol === 'admin' && <span style={estilos.badgeAdmin}>ADMINISTRADOR</span>}
             </div>
-
             {/* ESTADÍSTICAS RÁPIDAS ADMIN */}
             {rol === 'admin' && estadisticasAdmin && (
                 <div style={estilos.gridKPIs}>
@@ -299,9 +319,14 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                         <span style={estilos.labelKPI}>Pedidos Enviados</span>
                         <strong style={estilos.valorKPI}>{estadisticasAdmin?.pedidosEnviados || 0}</strong>
                     </div>
+                    <div style={estilos.cardKPI}>
+                        <span style={estilos.labelKPI}>Ganancias (Comisión 5%)</span>
+                        <strong style={{ ...estilos.valorKPI, color: '#2e7d32' }}>
+                            $ {estadisticasAdmin.gananciasPlataforma ? Number(estadisticasAdmin.gananciasPlataforma).toLocaleString('es-AR') : '0'}
+                        </strong>
+                    </div>
                 </div>
             )}
-
             {/* TABS */}
             <div style={estilos.tabsContainer}>
                 {tabs.map(tab => (
@@ -314,7 +339,6 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                     </button>
                 ))}
             </div>
-
             {/* VISTA: INVENTARIO */}
             {vistaActiva === 'inventario' && (
                 <div style={estilos.panelBlanco}>
@@ -324,7 +348,6 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                             Agregar Nuevo Plato
                         </button>
                     </div>
-
                     <div style={{ overflowX: 'auto' }}>
                         <table style={estilos.tabla}>
                             <thead>
@@ -339,7 +362,7 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {misPlatos.map(p => (
+                                {misPlatosFiltrados.map(p => (
                                     <tr key={p.id} style={estilos.filaBody}>
                                         <td style={estilos.celdaBody}>
                                             <div style={estilos.miniaturaWrapper}>
@@ -370,61 +393,92 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                     </div>
                 </div>
             )}
-
             {/* VISTA: DASHBOARD */}
             {vistaActiva === 'dashboard' && (
                 <>
-                    {rol !== 'admin' && (
-                        <div style={estilos.gridKPIs}>
-                            <div style={estilos.cardKPI}>
-                                <span style={estilos.labelKPI}>Volumen de Ventas</span>
-                                <strong style={estilos.valorKPI}>{volumenVentas} pedidos</strong>
-                            </div>
-                            <div style={estilos.cardKPI}>
-                                <span style={estilos.labelKPI}>Facturación Total</span>
-                                <strong style={{ ...estilos.valorKPI, color: '#d32f2f' }}>${facturacionTotal.toFixed(2)}</strong>
-                            </div>
+                    {rol === 'admin' ? (
+                        <div style={estilos.panelBlanco}>
+                            <h3 style={estilos.tituloSeccion}>Liquidación y Comisiones por Local (5%)</h3>
+                            {comisionesVendedores.length === 0 ? (
+                                <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>
+                                    No hay ventas registradas para comisionar.
+                                </p>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={estilos.tabla}>
+                                        <thead>
+                                            <tr style={estilos.filaHeader}>
+                                                <th style={estilos.celdaHeader}>ID Vendedor</th>
+                                                <th style={estilos.celdaHeader}>Nombre del Local</th>
+                                                <th style={estilos.celdaHeader}>Total Vendido ($)</th>
+                                                <th style={estilos.celdaHeader}>Comisión a Cobrar (5%)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {comisionesVendedores.map(item => (
+                                                <tr key={item.id} style={estilos.filaBody}>
+                                                    <td style={{ ...estilos.celdaBody, fontWeight: '600' }}>#{item.id}</td>
+                                                    <td style={{ ...estilos.celdaBody, fontWeight: '500', color: '#212121' }}>{item.nombre}</td>
+                                                    <td style={estilos.celdaBody}>$ {Number(item.totalVentas).toLocaleString('es-AR')}</td>
+                                                    <td style={{ ...estilos.celdaBody, fontWeight: '600', color: '#2e7d32' }}>
+                                                        $ {Number(item.comisionDebida).toLocaleString('es-AR')}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
+                    ) : (
+                        <>
+                            <div style={estilos.gridKPIs}>
+                                <div style={estilos.cardKPI}>
+                                    <span style={estilos.labelKPI}>Volumen de Ventas</span>
+                                    <strong style={estilos.valorKPI}>{volumenVentas} pedidos</strong>
+                                </div>
+                                <div style={estilos.cardKPI}>
+                                    <span style={estilos.labelKPI}>Facturación Total</span>
+                                    <strong style={{ ...estilos.valorKPI, color: '#d32f2f' }}>${facturacionTotal.toFixed(2)}</strong>
+                                </div>
+                            </div>
+                            <div style={estilos.panelBlanco}>
+                                <h3 style={estilos.tituloSeccion}>Control de Comandas Recibidas</h3>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                                    {/* SECCIÓN 1: PENDIENTES */}
+                                    <div style={{ borderLeft: '4px solid #f57c00', paddingLeft: '16px' }}>
+                                        <h4 style={{ margin: '0 0 16px 0', color: '#f57c00', fontSize: '1.1rem', fontWeight: '600' }}>Comandas Pendientes</h4>
+                                        {pendientes.length === 0 ? (
+                                            <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos pendientes.</p>
+                                        ) : (
+                                            renderTablaPedidos(pendientes)
+                                        )}
+                                    </div>
+                                    {/* SECCIÓN 2: ENVIADOS */}
+                                    <div style={{ borderLeft: '4px solid #388e3c', paddingLeft: '16px' }}>
+                                        <h4 style={{ margin: '0 0 16px 0', color: '#388e3c', fontSize: '1.1rem', fontWeight: '600' }}>Historial: Enviados</h4>
+                                        {enviados.length === 0 ? (
+                                            <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos enviados.</p>
+                                        ) : (
+                                            renderTablaPedidos(enviados)
+                                        )}
+                                    </div>
+                                    {/* SECCIÓN 3: RECHAZADOS */}
+                                    <div style={{ borderLeft: '4px solid #757575', paddingLeft: '16px' }}>
+                                        <h4 style={{ margin: '0 0 16px 0', color: '#757575', fontSize: '1.1rem', fontWeight: '600' }}>Historial: Rechazados</h4>
+                                        {rechazados.length === 0 ? (
+                                            <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos rechazados.</p>
+                                        ) : (
+                                            renderTablaPedidos(rechazados)
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </>
                     )}
-
-                    <div style={estilos.panelBlanco}>
-                        <h3 style={estilos.tituloSeccion}>Control de Comandas Recibidas</h3>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                            {/* SECCIÓN 1: PENDIENTES */}
-                            <div style={{ borderLeft: '4px solid #f57c00', paddingLeft: '16px' }}>
-                                <h4 style={{ margin: '0 0 16px 0', color: '#f57c00', fontSize: '1.1rem', fontWeight: '600' }}>Comandas Pendientes</h4>
-                                {pendientes.length === 0 ? (
-                                    <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos pendientes.</p>
-                                ) : (
-                                    renderTablaPedidos(pendientes)
-                                )}
-                            </div>
-
-                            {/* SECCIÓN 2: ENVIADOS */}
-                            <div style={{ borderLeft: '4px solid #388e3c', paddingLeft: '16px' }}>
-                                <h4 style={{ margin: '0 0 16px 0', color: '#388e3c', fontSize: '1.1rem', fontWeight: '600' }}>Historial: Enviados</h4>
-                                {enviados.length === 0 ? (
-                                    <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos enviados.</p>
-                                ) : (
-                                    renderTablaPedidos(enviados)
-                                )}
-                            </div>
-
-                            {/* SECCIÓN 3: RECHAZADOS */}
-                            <div style={{ borderLeft: '4px solid #757575', paddingLeft: '16px' }}>
-                                <h4 style={{ margin: '0 0 16px 0', color: '#757575', fontSize: '1.1rem', fontWeight: '600' }}>Historial: Rechazados</h4>
-                                {rechazados.length === 0 ? (
-                                    <p style={{ color: '#757575', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>No hay pedidos rechazados.</p>
-                                ) : (
-                                    renderTablaPedidos(rechazados)
-                                )}
-                            </div>
-                        </div>
-                    </div>
                 </>
             )}
-
             {/* VISTA: USUARIOS (ADMIN) */}
             {vistaActiva === 'usuarios' && rol === 'admin' && (
                 <div style={estilos.panelBlanco}>
@@ -483,7 +537,6 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                     </div>
                 </div>
             )}
-
             {/* MODAL: FORMULARIO PLATO */}
             {modalAbierto && (
                 <div style={estilos.modalOverlay}>
@@ -492,18 +545,15 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                             <h3 style={{ margin: 0, color: '#212121' }}>{creandoNuevo ? 'Agregar Nuevo Plato' : 'Editar Información del Plato'}</h3>
                             <button onClick={() => setModalAbierto(false)} style={estilos.botonCerrarModal}>✕</button>
                         </div>
-
                         <form onSubmit={manejarSubmit} style={estilos.formulario}>
                             <div style={estilos.grupoInput}>
                                 <label style={estilos.label}>Nombre del Plato</label>
                                 <input type="text" required value={formDataLocal.nombre} onChange={e => setFormDataLocal({ ...formDataLocal, nombre: e.target.value })} style={estilos.input} />
                             </div>
-
                             <div style={estilos.grupoInput}>
                                 <label style={estilos.label}>Descripción</label>
                                 <textarea required value={formDataLocal.descripcion} onChange={e => setFormDataLocal({ ...formDataLocal, descripcion: e.target.value })} style={{ ...estilos.input, minHeight: '80px', resize: 'vertical' }} />
                             </div>
-
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                                 <div style={estilos.grupoInput}>
                                     <label style={estilos.label}>Precio ($)</label>
@@ -514,7 +564,6 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                                     <input type="number" required min="1" max="100" value={formDataLocal.stock} onChange={e => setFormDataLocal({ ...formDataLocal, stock: e.target.value })} style={estilos.input} />
                                 </div>
                             </div>
-
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                                 <div style={estilos.grupoInput}>
                                     <label style={estilos.label}>Categoría</label>
@@ -533,7 +582,6 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                                     <input type="text" value={formDataLocal.tiempo_prep} onChange={e => setFormDataLocal({ ...formDataLocal, tiempo_prep: e.target.value })} style={estilos.input} />
                                 </div>
                             </div>
-
                             <div style={estilos.grupoInput}>
                                 <label style={estilos.label}>Imagen del Plato (.jpg)</label>
                                 <div style={estilos.uploadContainer}>
@@ -546,7 +594,6 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                                     {archivoImagen && <span style={estilos.fileName}>Archivo seleccionado: {archivoImagen.name}</span>}
                                 </div>
                             </div>
-
                             <div style={{ display: 'flex', gap: '24px', marginTop: '10px' }}>
                                 <label style={estilos.checkboxLabel}>
                                     <input type="checkbox" checked={formDataLocal.es_vegano} onChange={e => setFormDataLocal({ ...formDataLocal, es_vegano: e.target.checked })} /> Opción Vegana
@@ -555,7 +602,6 @@ function AdminPanel({ token, vendedorId, rol, onRefreshPlatos }) {
                                     <input type="checkbox" checked={formDataLocal.es_sintacc} onChange={e => setFormDataLocal({ ...formDataLocal, es_sintacc: e.target.checked })} /> Sin TACC
                                 </label>
                             </div>
-
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '24px' }}>
                                 <button type="button" onClick={() => setModalAbierto(false)} style={estilos.botonSecundario}>Cancelar</button>
                                 <button type="submit" style={estilos.botonPrimario}>{creandoNuevo ? 'Publicar Plato' : 'Guardar Cambios'}</button>

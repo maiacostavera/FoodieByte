@@ -7,85 +7,77 @@ const jwt = require('jsonwebtoken');
 
 // CREAR NUEVO PEDIDO (Para compradores logueados)
 router.post('/', async (req, res) => {
+    const tokenHeader = req.headers.authorization;
+    if (!tokenHeader) {
+        return res.status(401).json({ mensaje: "Error de sesión: No se proporcionó el token de autorización." });
+    }
+
+    let decoded;
     try {
-        const tokenHeader = req.headers.authorization;
-        if (!tokenHeader) {
-            return res.status(401).json({ mensaje: "Error de sesión: No se proporcionó el token de autorización." });
-        }
+        const tokenStr = tokenHeader.split(' ')[1];
+        decoded = jwt.verify(tokenStr, 'secret_key_foodiebyte');
+    } catch (err) {
+        return res.status(401).json({ mensaje: "Error de sesión: Token inválido o expirado." });
+    }
 
-        let decoded;
-        try {
-            const tokenStr = tokenHeader.split(' ')[1];
-            decoded = jwt.verify(tokenStr, 'secret_key_foodiebyte');
-        } catch (err) {
-            return res.status(401).json({ mensaje: "Error de sesión: Token inválido o expirado." });
-        }
+    if (decoded.rol === 'vendedor' || decoded.rol === 'admin') {
+        return res.status(403).json({ mensaje: "Los vendedores y administradores no pueden realizar pedidos." });
+    }
 
-        if (decoded.rol === 'vendedor' || decoded.rol === 'admin') {
-            return res.status(403).json({ mensaje: "Los vendedores y administradores no pueden realizar pedidos." });
-        }
+    const usuarioIdInput = decoded.id;
+    const { productos } = req.body;
 
-        const usuarioIdInput = decoded.id;
-        const { productos } = req.body;
+    if (!productos || !Array.isArray(productos) || productos.length === 0) {
+        return res.status(400).json({ mensaje: "El carrito está vacío o es inválido." });
+    }
 
-        if (!productos || !Array.isArray(productos) || productos.length === 0) {
-            return res.status(400).json({ mensaje: "El carrito está vacío o es inválido." });
-        }
+    // 1. Iniciamos la transacción manual de Sequelize
+    const t = await sequelize.transaction();
+    try {
+        let totalCalculadoReal = 0;
+        const productosOrdenados = [...productos].sort((a, b) => a.id - b.id);
 
-        // 1. Iniciamos la transacción gestionada por Sequelize para garantizar la atomicidad
-        const nuevoPedido = await sequelize.transaction(async (t) => {
-            let totalCalculadoReal = 0;
+        for (const item of productosOrdenados) {
+            const plato = await Plato.findByPk(item.id, {
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
 
-            // Reparación de raíz: Ordenar los productos por ID para evitar Deadlocks de MySQL
-            const productosOrdenados = [...productos].sort((a, b) => a.id - b.id);
-            
-            // Verificación previa y reducción de Stock atómica con bloqueo de filas
-            for (const item of productosOrdenados) {
-                const plato = await Plato.findByPk(item.id, {
-                    transaction: t,
-                    lock: t.LOCK.UPDATE
-                });
-                
-                if (!plato) {
-                    throw { status: 404, mensaje: `El plato ${item.nombre || item.id} no existe.` };
-                }
-
-                // Validar cantidad numérica y positiva
-                const cantidadSolicitada = parseInt(item.cantidad, 10);
-                if (isNaN(cantidadSolicitada) || cantidadSolicitada <= 0) {
-                    throw { status: 400, mensaje: `Cantidad inválida para el plato: ${plato.nombre}` };
-                }
-
-                if (plato.stock < cantidadSolicitada) {
-                    throw { status: 400, mensaje: `Stock insuficiente para el plato: ${plato.nombre}` };
-                }
-
-                // 2. Descontar el stock real de forma segura dentro de la transacción
-                await plato.update({ stock: plato.stock - cantidadSolicitada }, { transaction: t });
-
-                // Calcular total seguro con el precio de la base de datos
-                totalCalculadoReal += parseFloat(plato.precio) * cantidadSolicitada;
+            if (!plato) {
+                await t.rollback();
+                return res.status(404).json({ mensaje: `El plato ${item.nombre || item.id} no existe.` });
             }
 
-            // 3. Crear el registro consolidado del pedido
-            const pedidoCreado = await Pedido.create({
-                usuarioId: usuarioIdInput,
-                productos: JSON.stringify(productos), // Guardamos el detalle del carrito
-                total: totalCalculadoReal,            // Usamos el total verificado por el backend
-                estado: 'Pendiente'
-            }, { transaction: t });
+            const cantidad = parseInt(item.cantidad, 10);
+            if (isNaN(cantidad) || cantidad <= 0) {
+                await t.rollback();
+                return res.status(400).json({ mensaje: `Cantidad inválida para el plato: ${plato.nombre}` });
+            }
 
-            return pedidoCreado;
-        });
+            if (plato.stock < cantidad) {
+                await t.rollback();
+                return res.status(400).json({ mensaje: 'Stock insuficiente' });
+            }
 
-        res.status(201).json({ mensaje: "¡Pedido confirmado con éxito! 🛍️", pedido: nuevoPedido });
-
-    } catch (err) {
-        if (err.status) {
-            // Son errores intencionados desde dentro de la transacción (ej: falta de stock)
-            return res.status(err.status).json({ mensaje: err.mensaje });
+            // 2. Descontar el stock inmediatamente dentro de la transacción
+            await plato.decrement('stock', { by: cantidad, transaction: t });
+            totalCalculadoReal += parseFloat(plato.precio) * cantidad;
         }
-        console.error("Error al procesar pedido:", err);
+
+        // 3. Crear el registro del pedido
+        const nuevoPedido = await Pedido.create({
+            usuarioId: usuarioIdInput,
+            productos: JSON.stringify(productos),
+            total: totalCalculadoReal,
+            estado: 'Pendiente'
+        }, { transaction: t });
+
+        // 4. Confirmar transacción
+        await t.commit();
+        res.status(201).json({ mensaje: "¡Pedido confirmado con éxito! 🛍️", pedido: nuevoPedido });
+    } catch (errorTx) {
+        await t.rollback();
+        console.error("Error al procesar la transacción del pedido:", errorTx);
         res.status(500).json({ error: "Error interno al procesar el pedido." });
     }
 });
