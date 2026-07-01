@@ -81,23 +81,26 @@ function Navbar({
 
                 {/* ACCIONES CLAVE */}
                 <div style={estiloAcciones}>
+                    {!esVendedor && (
+                        <div 
+                            onClick={() => setModalVendedor(true)} 
+                            style={{ ...estiloEnlaceSutil, marginRight: '12px' }}
+                            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                            Quiero ser Vendedor
+                        </div>
+                    )}
+
                     {nombreUsuario ? (
                         <>
                             {/* VISTA EXCLUSIVA DEL CLIENTE: Solo ve Carrito y Sus Pedidos */}
                             {!esVendedor && (
                                 <>
-                                    <div 
-                                        onClick={() => setModalVendedor(true)} 
-                                        style={estiloEnlaceSutil}
-                                        onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                                        onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-                                    >
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
-                                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                                        </svg>
-                                        Quiero ser Vendedor
-                                    </div>
                                     <button onClick={alVerPerfil} style={estiloLinkNav}>Mis Pedidos</button>
                                     <button onClick={abrirCarrito} style={estiloBotonCarrito}>
                                         <span style={{ fontWeight: '500' }}>Carrito</span>
@@ -288,7 +291,7 @@ const estiloInputBusqueda = {
 const estiloAcciones = { 
     display: 'flex', 
     alignItems: 'center', 
-    gap: '24px', 
+    gap: '16px', 
     justifyContent: 'flex-end' 
 };
 const estiloBotonBase = {
@@ -438,7 +441,8 @@ const estiloEnlaceSutil = {
     ...estiloBotonBase,
     border: '1px solid #1976d2',
     color: '#1976d2',
-    backgroundColor: '#f8fBff'
+    backgroundColor: '#f8fBff',
+    marginLeft: '24px'
 };
 
 const estiloModalOverlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center' };

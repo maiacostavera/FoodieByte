@@ -104,7 +104,13 @@ function App() {
       <Navbar
         nombreUsuario={usuario?.nombre}
         rolUsuario={usuario?.rol}
-        cerrarSesion={logout}
+        cerrarSesion={() => {
+          logout();
+          setVerAdmin(false);
+          setVerMisPedidos(false);
+          setPlatoSeleccionado(null);
+          setMostrarAuth(false);
+        }}
         abrirLogin={() => { setMostrarAuth(true); setVistaAuth('login'); }}
         verAdmin={verAdmin}
         setVerAdmin={(v) => { setVerAdmin(v); setMostrarAuth(false); setVerMisPedidos(false); }}
@@ -118,6 +124,8 @@ function App() {
       />
 
       {verCarrito && <Carrito alCerrar={() => setVerCarrito(false)} />}
+      
+      {/* Banner como portada pública y estática para el catálogo principal */}
       {!mostrarAuth && !verAdmin && !verMisPedidos && !platoSeleccionado && <Banner />}
 
       <div style={{ flex: 1, maxWidth: '1250px', width: '100%', margin: '0 auto', padding: '40px 20px' }}>
