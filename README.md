@@ -13,6 +13,7 @@ Proyecto final de carrera — arquitectura full-stack MERN adaptada a MySQL.
 - [Stack tecnológico](#stack-tecnológico)
 - [Roles y funcionalidades](#roles-y-funcionalidades)
 - [Puesta en marcha](#puesta-en-marcha)
+- [Migrar datos desde MySQL](#migrar-datos-desde-mysql)
 - [Variables de entorno](#variables-de-entorno)
 - [Modelo de datos](#modelo-de-datos)
 - [API](#api)
@@ -28,7 +29,7 @@ Proyecto final de carrera — arquitectura full-stack MERN adaptada a MySQL.
 |---|---|
 | Frontend | React 19 (hooks + Context API), Axios, Vite |
 | Backend | Node.js, Express 5 |
-| Base de datos | MySQL 8 / MariaDB 10.11, gestionada con el ORM Sequelize |
+| Base de datos | PostgreSQL 14+, gestionada con el ORM Sequelize |
 | Seguridad | JSON Web Tokens (JWT) y hashing de contraseñas con bcrypt |
 | Archivos | Multer para la carga de imágenes de los platos |
 
@@ -68,7 +69,7 @@ Proyecto final de carrera — arquitectura full-stack MERN adaptada a MySQL.
 ### Requisitos
 
 - Node.js 18 o superior
-- MySQL 8 o MariaDB 10.6 o superior, en ejecución
+- PostgreSQL 14 o superior, en ejecución
 
 ### 1. Backend
 
@@ -80,12 +81,9 @@ npm run db:setup          # crea la base, corre las migraciones y carga los dato
 npm start                 # http://localhost:3000
 ```
 
-> **Si ya tenías una base `foodiebyte_db` de una versión anterior**, usá
-> `npm run db:reset` en lugar de `db:setup`. El esquema cambió (los productos
-> de cada pedido pasaron de ser un campo de texto a la tabla `PedidoItems`) y
-> las migraciones no pueden aplicarse sobre las tablas viejas.
-> `db:reset` **borra la base y la vuelve a crear**: los datos de prueba
-> anteriores se pierden.
+> **Si venís de la versión con MySQL** y querés conservar tus datos, no corras
+> `db:seed`: creá el esquema vacío con `npm run db:create && npm run db:migrate`
+> y después seguí [Migrar datos desde MySQL](#migrar-datos-desde-mysql).
 
 ### 2. Frontend
 
@@ -126,6 +124,7 @@ Los foodies se crean desde el formulario de registro de la aplicación.
 | `npm run db:migrate` | Aplica las migraciones pendientes |
 | `npm run db:seed` | Carga los datos de ejemplo |
 | `npm run db:reset` | **Borra** la base y la reconstruye desde cero |
+| `npm run migrar:mysql` | Copia los datos de una base MySQL a PostgreSQL |
 | `npm test` | Pruebas de integración de la API |
 
 **client**
@@ -146,15 +145,77 @@ El backend no tiene ningún valor sensible escrito en el código. Todo sale del
 
 | Variable | Descripción |
 |---|---|
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Conexión a MySQL |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Conexión a PostgreSQL (el puerto por defecto es `5432`) |
+| `DB_SSL` | `true` si el servidor exige TLS (Neon, Supabase, Railway); `false` en local |
 | `JWT_SECRET` | Clave de firma de los tokens. Generala con `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
 | `JWT_EXPIRES_IN` | Vigencia del token (por defecto `24h`) |
 | `PORT` | Puerto de la API (por defecto `3000`) |
 | `CORS_ORIGIN` | Origen del frontend habilitado; admite varios separados por coma |
 | `COMISION_PLATAFORMA` | Comisión sobre las ventas concretadas (`0.05` = 5 %) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Credenciales del administrador inicial |
+| `MYSQL_*` | Solo para la migración puntual desde MySQL; se pueden borrar después |
 
 En el cliente, `VITE_API_URL` define la URL de la API.
+
+---
+
+## Migrar datos desde MySQL
+
+El proyecto usaba MySQL. `server/scripts/migrar-mysql-a-postgres.js` copia una
+base MySQL existente a PostgreSQL conservando los IDs originales, de modo que
+las relaciones y las rutas de las imágenes siguen siendo válidas.
+
+### Cómo se usa
+
+1. Dejá encendido el MySQL de origen y completá las variables `MYSQL_*` del `.env`.
+2. Creá el esquema en PostgreSQL **sin datos de ejemplo**:
+
+   ```bash
+   npm run db:create && npm run db:migrate
+   ```
+
+3. Probá primero en seco: lee, valida y muestra el resumen sin escribir nada.
+
+   ```bash
+   node scripts/migrar-mysql-a-postgres.js --dry-run
+   ```
+
+4. Si el resumen es correcto, migrá:
+
+   ```bash
+   npm run migrar:mysql
+   ```
+
+### Banderas
+
+| Bandera | Para qué sirve |
+|---|---|
+| `--dry-run` | Simula la migración completa sin escribir en PostgreSQL |
+| `--force` | Vacía el destino antes de migrar (por defecto se niega a escribir sobre datos existentes) |
+| `--reparar-codificacion` | Arregla los acentos y las ñ que hayan quedado mal codificados en el origen |
+
+### Qué resuelve
+
+- **Detecta el esquema de origen.** Si la base todavía guarda los productos del
+  pedido como un JSON en `Pedidos.productos`, los descompone en líneas de
+  `PedidoItems` y recupera el vendedor de cada una desde el plato. Un pedido que
+  mezclaba dos locales queda correctamente separado.
+- **Sanea los datos.** Roles que ya no existen (`comprador`), emails duplicados o
+  vacíos, platos sin vendedor, pedidos que apuntan a usuarios borrados: cada caso
+  se informa y se resuelve sin abortar la migración.
+- **Acentos mal codificados.** Es habitual que una base creada desde
+  phpMyAdmin guarde `PizzerÃ­a` en lugar de `Pizzería`. El script lo detecta y
+  avisa; con `--reparar-codificacion` lo corrige.
+- **Ajusta las secuencias.** Después de insertar con IDs explícitos, los
+  contadores de PostgreSQL se reposicionan. Sin esto, el primer alta desde la
+  aplicación fallaría por clave duplicada.
+- **Todo o nada.** La escritura ocurre dentro de una transacción: si algo falla,
+  la base de destino queda intacta.
+- **Verifica el resultado.** Al terminar compara los conteos y controla que el
+  total de cada pedido coincida con la suma de sus líneas.
+
+Las imágenes de los platos no están en la base: viven en `server/uploads/platos/`
+y no se tocan durante la migración.
 
 ---
 
@@ -178,6 +239,11 @@ Usuario ──< Plato ──< PedidoItem >── Pedido >── Usuario
 El esquema lo administran las migraciones de Sequelize (`server/migrations/`),
 no `sequelize.sync()`: así el estado de la base queda versionado y es
 reproducible en cualquier máquina.
+
+> En PostgreSQL los nombres con mayúsculas son sensibles a mayúsculas y hay que
+> escribirlos entre comillas dobles al consultarlos a mano:
+> `SELECT * FROM "Usuarios";` funciona, `SELECT * FROM Usuarios;` no.
+> La tabla `platos` está en minúsculas y no las necesita.
 
 ---
 
@@ -322,6 +388,7 @@ FoodieByte/
     ├── migrations/                Esquema versionado
     ├── models/                    Modelos de Sequelize
     ├── pruebas/                   Pruebas de integración
+    ├── scripts/                   Migración puntual de datos desde MySQL
     ├── routes/                    usuarios · platos · pedidos · admin
     ├── seeders/                   Datos de ejemplo
     ├── uploads/platos/            Imágenes subidas por los vendedores

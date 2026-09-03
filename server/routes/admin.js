@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { fn, col, literal } = require('sequelize');
+const { fn, col } = require('sequelize');
 const { Usuario, Plato, Pedido, PedidoItem } = require('../models');
 const { autenticar, requiereRol } = require('../middleware/auth');
 const { ROLES, COMISION_PLATAFORMA } = require('../config/seguridad');
@@ -211,7 +211,10 @@ router.get('/comisiones-vendedores', async (req, res) => {
         required: true
       }],
       group: ['vendedorId', 'vendedor.id'],
-      order: [[literal('`totalVentas`'), 'DESC']],
+      // Se ordena por la expresión agregada y no por su alias: los alias de
+      // SELECT no son citables igual en todos los motores, y las comillas
+      // invertidas de MySQL son sintaxis inválida en PostgreSQL.
+      order: [[fn('SUM', col('subtotal')), 'DESC']],
       raw: true,
       nest: true
     });

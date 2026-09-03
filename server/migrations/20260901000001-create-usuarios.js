@@ -32,5 +32,8 @@ module.exports = {
 
   async down(queryInterface) {
     await queryInterface.dropTable('Usuarios');
+    // En PostgreSQL el tipo ENUM sobrevive al DROP TABLE: si no se elimina,
+    // volver a correr la migración falla porque el tipo ya existe.
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Usuarios_rol";');
   }
 };

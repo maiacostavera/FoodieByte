@@ -100,10 +100,13 @@ router.get('/', async (req, res) => {
 
     if (busqueda && busqueda.trim() !== '') {
       const texto = `%${busqueda.trim()}%`;
+      // iLike (ILIKE de PostgreSQL) ignora mayúsculas y minúsculas. Con LIKE
+      // a secas, buscar "pizza" no encontraría "Pizza Margherita": en MySQL
+      // funcionaba por la colación por defecto, en PostgreSQL no.
       where[Op.or] = [
-        { nombre: { [Op.like]: texto } },
-        { descripcion: { [Op.like]: texto } },
-        { categoria: { [Op.like]: texto } }
+        { nombre: { [Op.iLike]: texto } },
+        { descripcion: { [Op.iLike]: texto } },
+        { categoria: { [Op.iLike]: texto } }
       ];
     }
 
