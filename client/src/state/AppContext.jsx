@@ -1,100 +1,174 @@
-import React, { createContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import api, { mensajeDeError, registrarManejadorDeSesion } from '../api/client';
+import { FoodieContext } from './FoodieContext';
 
-export const FoodieContext = createContext();
+const CLAVE_USUARIO = 'foodie_usuario';
+const CLAVE_TOKEN = 'token';
+const CLAVE_CARRITO = 'foodie_carrito';
+
+const leerJSON = (clave) => {
+    try {
+        const valor = localStorage.getItem(clave);
+        return valor ? JSON.parse(valor) : null;
+    } catch {
+        return null;
+    }
+};
 
 const AppProvider = ({ children }) => {
-    const [usuario, setUsuario] = useState(null);
-    const [token, setToken] = useState(localStorage.getItem('token') || null);
-    const [carrito, setCarrito] = useState([]);
+    // El usuario se lee del almacenamiento en la inicialización del estado,
+    // no dentro de un efecto: evita el parpadeo de "sesión cerrada" al recargar.
+    const [usuario, setUsuario] = useState(() => leerJSON(CLAVE_USUARIO));
+    const [token, setToken] = useState(() => localStorage.getItem(CLAVE_TOKEN));
+    const [carrito, setCarrito] = useState(() => leerJSON(CLAVE_CARRITO) || []);
+    const [aviso, setAviso] = useState(null);
 
-    useEffect(() => {
-        const nombreGuardado = localStorage.getItem('nombreUsuario');
-        const rolGuardado = localStorage.getItem('rolUsuario');
-        const idGuardado = localStorage.getItem('userId');
-        if (nombreGuardado && token) {
-            setUsuario({ id: idGuardado, nombre: nombreGuardado, rol: rolGuardado });
-        }
-    }, [token]);
+    /** Muestra un mensaje temporal en pantalla (reemplaza a los alert()). */
+    const mostrarAviso = useCallback((texto, tipo = 'info') => {
+        setAviso({ texto, tipo, id: Date.now() });
+    }, []);
 
-    const login = (datosUsuario, tokenRecibido) => {
-        localStorage.setItem('token', tokenRecibido);
-        localStorage.setItem('nombreUsuario', datosUsuario.nombre);
-        localStorage.setItem('rolUsuario', datosUsuario.rol);
-        localStorage.setItem('userId', datosUsuario.id);
+    const cerrarAviso = useCallback(() => setAviso(null), []);
+
+    const login = useCallback((datosUsuario, tokenRecibido) => {
+        localStorage.setItem(CLAVE_TOKEN, tokenRecibido);
+        localStorage.setItem(CLAVE_USUARIO, JSON.stringify(datosUsuario));
         setToken(tokenRecibido);
         setUsuario(datosUsuario);
-    };
+    }, []);
 
-    const logout = () => {
-        localStorage.clear();
+    const logout = useCallback(() => {
+        localStorage.removeItem(CLAVE_TOKEN);
+        localStorage.removeItem(CLAVE_USUARIO);
+        localStorage.removeItem(CLAVE_CARRITO);
         setToken(null);
         setUsuario(null);
         setCarrito([]);
-    };
+    }, []);
 
-    const agregarAlCarrito = (plato, cantidadSeleccionada = 1) => {
+    // Si la API responde 401 (token vencido o revocado), se cierra la sesión
+    // y se avisa, en lugar de dejar al usuario con una sesión muerta.
+    useEffect(() => {
+        registrarManejadorDeSesion(() => {
+            logout();
+            mostrarAviso('Tu sesión expiró. Iniciá sesión nuevamente.', 'error');
+        });
+    }, [logout, mostrarAviso]);
+
+    // Revalida contra el servidor la sesión guardada en el navegador: si el
+    // admin cambió el rol del usuario, el frontend se entera al recargar.
+    useEffect(() => {
+        if (!token) return;
+        let cancelado = false;
+
+        api.get('/usuarios/perfil')
+            .then(({ data }) => {
+                if (cancelado) return;
+                const actualizado = { id: data.id, nombre: data.nombre, rol: data.rol, email: data.email };
+                localStorage.setItem(CLAVE_USUARIO, JSON.stringify(actualizado));
+                setUsuario(actualizado);
+            })
+            .catch(() => { /* el interceptor ya maneja el 401 */ });
+
+        return () => { cancelado = true; };
+    }, [token]);
+
+    // El carrito sobrevive a un F5 accidental.
+    useEffect(() => {
+        localStorage.setItem(CLAVE_CARRITO, JSON.stringify(carrito));
+    }, [carrito]);
+
+    const agregarAlCarrito = useCallback((plato, cantidadSeleccionada = 1) => {
         setCarrito((prev) => {
-            const existe = prev.find(item => item.id === plato.id);
-            if (existe) {
+            const existente = prev.find(item => item.id === plato.id);
+            const yaEnCarrito = existente ? existente.cantidad : 0;
+            const stockDisponible = Number(plato.stock ?? 0);
+
+            // No dejamos armar un carrito que el backend va a rechazar por stock.
+            if (yaEnCarrito + cantidadSeleccionada > stockDisponible) {
+                mostrarAviso(
+                    `Solo quedan ${stockDisponible} unidades de "${plato.nombre}".`,
+                    'error'
+                );
+                return prev;
+            }
+
+            mostrarAviso(`"${plato.nombre}" se agregó al carrito.`, 'exito');
+
+            if (existente) {
                 return prev.map(item =>
-                    item.id === plato.id ? { ...item, cantidad: item.cantidad + cantidadSeleccionada } : item
+                    item.id === plato.id
+                        ? { ...item, cantidad: item.cantidad + cantidadSeleccionada }
+                        : item
                 );
             }
             return [...prev, { ...plato, cantidad: cantidadSeleccionada }];
         });
-    };
+    }, [mostrarAviso]);
 
-    const eliminarDelCarrito = (id) => {
-        setCarrito((prev) => prev.filter(item => item.id !== id));
-    };
-
-    const disminuirDelCarrito = (id) => {
+    const disminuirDelCarrito = useCallback((id) => {
         setCarrito((prev) => {
-            const existe = prev.find(item => item.id === id);
-            if (existe && existe.cantidad > 1) {
-                return prev.map(item => item.id === id ? { ...item, cantidad: item.cantidad - 1 } : item);
+            const existente = prev.find(item => item.id === id);
+            if (existente && existente.cantidad > 1) {
+                return prev.map(item =>
+                    item.id === id ? { ...item, cantidad: item.cantidad - 1 } : item
+                );
             }
             return prev.filter(item => item.id !== id);
         });
-    };
+    }, []);
 
-    const vaciarCarrito = () => setCarrito([]);
+    const eliminarDelCarrito = useCallback((id) => {
+        setCarrito((prev) => prev.filter(item => item.id !== id));
+    }, []);
 
-    const enviarPedidoAlServidor = async () => {
+    const vaciarCarrito = useCallback(() => setCarrito([]), []);
+
+    const totalCarrito = useMemo(
+        () => carrito.reduce((acc, item) => acc + Number(item.precio) * item.cantidad, 0),
+        [carrito]
+    );
+
+    const cantidadEnCarrito = useMemo(
+        () => carrito.reduce((acc, item) => acc + item.cantidad, 0),
+        [carrito]
+    );
+
+    const enviarPedidoAlServidor = useCallback(async () => {
         if (carrito.length === 0) {
-            alert("No hay productos en el carrito.");
+            mostrarAviso('No hay productos en el carrito.', 'error');
             return false;
         }
 
-        const totalCalculado = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-
         try {
-            const res = await axios.post('http://localhost:3000/api/pedidos', {
-                productos: carrito,
-                total: totalCalculado
-            }, {
-                headers: { 'authorization': `Bearer ${token}` }
+            // Solo se manda id y cantidad: los precios los pone el servidor.
+            const { data } = await api.post('/pedidos', {
+                productos: carrito.map(item => ({ id: item.id, cantidad: item.cantidad }))
             });
-
-            alert(res.data.mensaje);
+            mostrarAviso(data.mensaje, 'exito');
             vaciarCarrito();
             return true;
         } catch (err) {
-            alert(err.response?.data?.mensaje || "Error al procesar la compra.");
+            mostrarAviso(mensajeDeError(err, 'No se pudo procesar la compra.'), 'error');
             return false;
         }
-    };
+    }, [carrito, mostrarAviso, vaciarCarrito]);
 
-    return (
-        <FoodieContext.Provider value={{
-            usuario, token, login, logout,
-            carrito, agregarAlCarrito, eliminarDelCarrito, disminuirDelCarrito, vaciarCarrito,
-            enviarPedidoAlServidor
-        }}>
-            {children}
-        </FoodieContext.Provider>
-    );
+    const valor = useMemo(() => ({
+        usuario, token, login, logout,
+        carrito, totalCarrito, cantidadEnCarrito,
+        agregarAlCarrito, eliminarDelCarrito, disminuirDelCarrito, vaciarCarrito,
+        enviarPedidoAlServidor,
+        aviso, mostrarAviso, cerrarAviso
+    }), [
+        usuario, token, login, logout,
+        carrito, totalCarrito, cantidadEnCarrito,
+        agregarAlCarrito, eliminarDelCarrito, disminuirDelCarrito, vaciarCarrito,
+        enviarPedidoAlServidor,
+        aviso, mostrarAviso, cerrarAviso
+    ]);
+
+    return <FoodieContext.Provider value={valor}>{children}</FoodieContext.Provider>;
 };
 
 export default AppProvider;

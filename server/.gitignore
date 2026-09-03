@@ -1,0 +1,9 @@
+node_modules
+.env
+.env.local
+*.log
+npm-debug.log*
+
+# Imágenes subidas por los vendedores en tiempo de ejecución
+uploads/platos/*
+!uploads/platos/.gitkeep

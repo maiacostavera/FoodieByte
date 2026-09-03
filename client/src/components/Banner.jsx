@@ -1,5 +1,5 @@
-import React from 'react';
-import imagenBanner from '../assets/banner.png';
+// banner.webp reemplaza al PNG original de 6,7 MB: mismo aspecto, 75 KB.
+import imagenBanner from '../assets/banner.webp';
 
 function Banner() {
     const hacerScrollAlMenu = () => {
@@ -19,11 +19,11 @@ function Banner() {
                     <p style={estiloSubtitulo}>
                         Descubre el sabor de los platos caseros preparados por vendedores de tu zona
                     </p>
-                    <button 
+                    <button
                         onClick={hacerScrollAlMenu}
                         style={estiloBotonCTA}
-                        onMouseEnter={(e) => e.target.style.backgroundColor = '#b71c1c'}
-                        onMouseLeave={(e) => e.target.style.backgroundColor = '#d32f2f'}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b71c1c'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#d32f2f'}
                     >
                         Explorar Menú
                     </button>
@@ -33,10 +33,9 @@ function Banner() {
     );
 }
 
-// ESTILOS CORPORATIVOS UCES
 const estiloHeroContainer = {
     width: '100%',
-    height: '500px', // Altura controlada para el Hero
+    height: 'clamp(340px, 45vh, 500px)',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
@@ -47,7 +46,7 @@ const estiloHeroContainer = {
 const estiloOverlay = {
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.45)', // Overlay oscuro para máximo contraste de legibilidad
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -64,7 +63,7 @@ const estiloHeroContenido = {
 };
 
 const estiloTitulo = {
-    fontSize: '3.8rem',
+    fontSize: 'clamp(2rem, 5vw, 3.8rem)',
     fontWeight: '800',
     lineHeight: '1.1',
     marginBottom: '20px',
@@ -73,7 +72,7 @@ const estiloTitulo = {
 };
 
 const estiloSubtitulo = {
-    fontSize: '1.3rem',
+    fontSize: 'clamp(1rem, 2vw, 1.3rem)',
     fontWeight: '400',
     lineHeight: '1.6',
     marginBottom: '40px',
