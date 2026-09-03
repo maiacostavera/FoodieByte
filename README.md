@@ -120,6 +120,7 @@ Los foodies se crean desde el formulario de registro de la aplicación.
 |---|---|
 | `npm start` | Levanta la API |
 | `npm run dev` | La levanta con recarga automática |
+| `npm run db:check` | Diagnostica la conexión y muestra qué configuración se está leyendo |
 | `npm run db:setup` | Crea la base, migra y carga datos de ejemplo |
 | `npm run db:migrate` | Aplica las migraciones pendientes |
 | `npm run db:seed` | Carga los datos de ejemplo |

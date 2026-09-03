@@ -6,6 +6,7 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "db:create": "sequelize db:create",
+    "db:check": "node scripts/verificar-conexion.js",
     "db:migrate": "sequelize db:migrate",
     "db:seed": "sequelize db:seed:all",
     "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
