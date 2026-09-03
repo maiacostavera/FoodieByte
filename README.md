@@ -80,6 +80,13 @@ npm run db:setup          # crea la base, corre las migraciones y carga los dato
 npm start                 # http://localhost:3000
 ```
 
+> **Si ya tenías una base `foodiebyte_db` de una versión anterior**, usá
+> `npm run db:reset` en lugar de `db:setup`. El esquema cambió (los productos
+> de cada pedido pasaron de ser un campo de texto a la tabla `PedidoItems`) y
+> las migraciones no pueden aplicarse sobre las tablas viejas.
+> `db:reset` **borra la base y la vuelve a crear**: los datos de prueba
+> anteriores se pierden.
+
 ### 2. Frontend
 
 En otra terminal:
