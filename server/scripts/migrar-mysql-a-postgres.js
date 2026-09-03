@@ -49,23 +49,53 @@ const aviso = (msg) => { advertencias.push(msg); console.log(`   ⚠️  ${msg}`
 // Utilidades
 // ---------------------------------------------------------------------------
 
+/**
+ * Mapa de nombre lógico -> nombre real de la tabla en el origen.
+ *
+ * En Windows, MySQL guarda los nombres de tabla en minúsculas
+ * (lower_case_table_names=1), así que "Usuarios" queda como "usuarios".
+ * En Linux y macOS se respetan las mayúsculas. Para que el script funcione
+ * en cualquier sistema, se leen los nombres reales una sola vez y después
+ * se usan tal como están escritos en la base.
+ */
+async function mapaDeTablas(conexion, baseDatos) {
+  const [filas] = await conexion.query(
+    `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?`,
+    [baseDatos]
+  );
+
+  const mapa = new Map();
+  for (const fila of filas) {
+    const nombre = fila.TABLE_NAME || fila.table_name;
+    mapa.set(String(nombre).toLowerCase(), nombre);
+  }
+  return mapa;
+}
+
+/** Nombre real de una tabla, sin importar cómo esté escrita. */
+const nombreReal = (mapa, tabla) => mapa.get(tabla.toLowerCase()) || null;
+
+const tablaExiste = (mapa, tabla) => mapa.has(tabla.toLowerCase());
+
 /** Columnas realmente presentes en una tabla del origen. */
-async function columnasDe(conexion, baseDatos, tabla) {
+async function columnasDe(conexion, baseDatos, mapa, tabla) {
+  const real = nombreReal(mapa, tabla);
+  if (!real) return new Set();
+
   const [filas] = await conexion.query(
     `SELECT COLUMN_NAME FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-    [baseDatos, tabla]
+    [baseDatos, real]
   );
-  return new Set(filas.map(f => f.COLUMN_NAME));
+  return new Set(filas.map(f => f.COLUMN_NAME || f.column_name));
 }
 
-async function tablaExiste(conexion, baseDatos, tabla) {
-  const [filas] = await conexion.query(
-    `SELECT COUNT(*) AS n FROM information_schema.TABLES
-     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-    [baseDatos, tabla]
-  );
-  return Number(filas[0].n) > 0;
+/** Lee una tabla completa usando su nombre real. */
+async function leerTabla(conexion, mapa, tabla) {
+  const real = nombreReal(mapa, tabla);
+  if (!real) return [];
+  const [filas] = await conexion.query(`SELECT * FROM \`${real}\` ORDER BY id`);
+  return filas;
 }
 
 /** MySQL guarda los booleanos como 0/1 y a veces llegan como Buffer. */
@@ -180,30 +210,43 @@ async function verificarTotales() {
 // ---------------------------------------------------------------------------
 
 async function leerOrigen(conexion, baseDatos) {
-  const esquemaNuevo = await tablaExiste(conexion, baseDatos, 'PedidoItems');
+  const mapa = await mapaDeTablas(conexion, baseDatos);
+
+  // Las tablas imprescindibles tienen que estar, más allá de cómo se escriban.
+  const faltantes = ['Usuarios', 'platos', 'Pedidos'].filter(t => !tablaExiste(mapa, t));
+  if (faltantes.length > 0) {
+    throw new Error(
+      `A la base de origen le faltan tablas: ${faltantes.join(', ')}.\n` +
+      `   Tablas encontradas: ${[...mapa.values()].join(', ')}`
+    );
+  }
+
+  const esquemaNuevo = tablaExiste(mapa, 'PedidoItems');
   log(`\n📖 Esquema de origen detectado: ${esquemaNuevo ? 'NUEVO (con PedidoItems)' : 'ANTERIOR (productos en JSON)'}`);
 
-  const colUsuarios = await columnasDe(conexion, baseDatos, 'Usuarios');
-  const colPlatos = await columnasDe(conexion, baseDatos, 'platos');
-  const colPedidos = await columnasDe(conexion, baseDatos, 'Pedidos');
-
-  const [usuarios] = await conexion.query('SELECT * FROM `Usuarios` ORDER BY id');
-  const [platos] = await conexion.query('SELECT * FROM `platos` ORDER BY id');
-  const [pedidos] = await conexion.query('SELECT * FROM `Pedidos` ORDER BY id');
-
-  let items = [];
-  if (esquemaNuevo) {
-    const [filas] = await conexion.query('SELECT * FROM `PedidoItems` ORDER BY id');
-    items = filas;
+  // Tablas de versiones anteriores del proyecto que ya no tienen equivalente.
+  const SIN_EQUIVALENTE = ['comentarios', 'valoraciones', 'categoria', 'categorias'];
+  const ignoradas = [];
+  for (const tabla of SIN_EQUIVALENTE) {
+    if (!tablaExiste(mapa, tabla)) continue;
+    const [conteo] = await conexion.query(`SELECT COUNT(*) AS n FROM \`${nombreReal(mapa, tabla)}\``);
+    ignoradas.push({ tabla: nombreReal(mapa, tabla), filas: Number(conteo[0].n) });
   }
 
-  let preguntas = [];
-  if (await tablaExiste(conexion, baseDatos, 'Preguntas')) {
-    const [filas] = await conexion.query('SELECT * FROM `Preguntas` ORDER BY id');
-    preguntas = filas;
-  }
+  const colUsuarios = await columnasDe(conexion, baseDatos, mapa, 'Usuarios');
+  const colPlatos = await columnasDe(conexion, baseDatos, mapa, 'platos');
+  const colPedidos = await columnasDe(conexion, baseDatos, mapa, 'Pedidos');
 
-  return { esquemaNuevo, usuarios, platos, pedidos, items, preguntas, colUsuarios, colPlatos, colPedidos };
+  const usuarios = await leerTabla(conexion, mapa, 'Usuarios');
+  const platos = await leerTabla(conexion, mapa, 'platos');
+  const pedidos = await leerTabla(conexion, mapa, 'Pedidos');
+  const items = esquemaNuevo ? await leerTabla(conexion, mapa, 'PedidoItems') : [];
+  const preguntas = tablaExiste(mapa, 'Preguntas') ? await leerTabla(conexion, mapa, 'Preguntas') : [];
+
+  return {
+    esquemaNuevo, usuarios, platos, pedidos, items, preguntas,
+    colUsuarios, colPlatos, colPedidos, ignoradas, mapa
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -485,6 +528,14 @@ async function migrar() {
   log(`   Pedidos:  ${origen.pedidos.length}`);
   if (origen.esquemaNuevo) log(`   Líneas de pedido: ${origen.items.length}`);
   log(`   Preguntas: ${origen.preguntas.length}`);
+
+  if (origen.ignoradas.length > 0) {
+    log('\n📌 Tablas de versiones anteriores que NO se migran (el modelo actual no las tiene):');
+    for (const { tabla, filas } of origen.ignoradas) {
+      log(`   ${tabla}: ${filas} fila(s)`);
+    }
+    log('   Quedan intactas en MySQL por si las necesitás.');
+  }
 
   log('\n🔧 Transformando y validando…');
 
