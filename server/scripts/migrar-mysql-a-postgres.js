@@ -156,6 +156,25 @@ const aNumero = (valor, porDefecto = 0) => {
   return Number.isFinite(n) ? n : porDefecto;
 };
 
+let imagenesDesdeColumnaAlternativa = 0;
+
+/**
+ * Devuelve la ruta de la imagen del plato mirando las dos columnas que
+ * usaron distintas versiones del proyecto: imagenUrl y imagen.
+ */
+const primeraImagen = (plato, columnas) => {
+  const principal = columnas.has('imagenUrl') ? plato.imagenUrl : null;
+  if (principal && String(principal).trim() !== '') return String(principal).trim();
+
+  const alternativa = columnas.has('imagen') ? plato.imagen : null;
+  if (alternativa && String(alternativa).trim() !== '') {
+    imagenesDesdeColumnaAlternativa++;
+    return String(alternativa).trim();
+  }
+
+  return null;
+};
+
 /** Normaliza un valor contra una lista permitida (los ENUM de PostgreSQL son estrictos). */
 const normalizar = (valor, permitidos, porDefecto, contexto) => {
   if (permitidos.includes(valor)) return valor;
@@ -318,7 +337,9 @@ function transformarPlatos(filas, columnas, idsUsuarios, vendedorPorDefecto) {
       descripcion: sanear(p.descripcion) || null,
       precio,
       categoria: p.categoria || null,
-      imagenUrl: columnas.has('imagenUrl') ? (p.imagenUrl || null) : null,
+      // Algunas versiones del proyecto guardaban la foto en "imagen" y otras
+      // en "imagenUrl". Se toma la que tenga valor para no perder ninguna.
+      imagenUrl: primeraImagen(p, columnas),
       stock: Math.max(0, Math.min(100, Math.trunc(aNumero(p.stock, 0)))),
       vendedorId,
       tiempo_prep: columnas.has('tiempo_prep') ? (p.tiempo_prep || '20-30 min') : '20-30 min',
@@ -454,11 +475,13 @@ function transformarPreguntas(filas, idsPlatos, idsUsuarios) {
       id: p.id,
       platoId: p.platoId,
       usuarioId: p.usuarioId,
-      texto: sanear(String(p.texto || '').trim()) || '(consulta vacía)',
+      // La columna se llamó "pregunta" en versiones anteriores y "texto" en
+      // la actual; lo mismo con "fecha" frente a createdAt/updatedAt.
+      texto: sanear(String(p.texto || p.pregunta || '').trim()) || '(consulta vacía)',
       respuesta: sanear(p.respuesta) || null,
       respondidaEn: p.respondidaEn ? new Date(p.respondidaEn) : null,
-      createdAt: aFecha(p.createdAt),
-      updatedAt: aFecha(p.updatedAt)
+      createdAt: aFecha(p.createdAt || p.fecha),
+      updatedAt: aFecha(p.updatedAt || p.fecha)
     }));
 }
 
@@ -673,6 +696,10 @@ function imprimirResumen() {
   for (const [tabla, origen, destino] of resumen) {
     log(String(tabla).padEnd(24) + String(origen).padEnd(16) + String(destino));
   }
+  if (imagenesDesdeColumnaAlternativa > 0) {
+    log(`\n🖼️  ${imagenesDesdeColumnaAlternativa} plato(s) tenían la foto en la columna "imagen" en lugar de "imagenUrl": se recuperaron igual.`);
+  }
+
   if (textosSospechosos > 0) {
     log('');
     if (REPARAR_CODIFICACION) {
