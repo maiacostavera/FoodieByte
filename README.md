@@ -4,7 +4,11 @@ Plataforma integral de gestión gastronómica que conecta comensales (*foodies*)
 locales de comida, con gestión de inventario, seguimiento de pedidos y liquidación
 de comisiones.
 
-Proyecto final de carrera — arquitectura full-stack MERN adaptada a MySQL.
+Proyecto final de carrera — arquitectura full-stack adaptada a PostgreSQL.
+
+> **¿Retomás el desarrollo?** Empezá por [`PROJECT.md`](PROJECT.md): cuenta en qué
+> estado está el proyecto, qué se cambió y por qué, y qué queda pendiente.
+> Este README es la referencia para instalar y correr.
 
 ---
 
