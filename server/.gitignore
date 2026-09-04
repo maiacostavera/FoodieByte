@@ -7,3 +7,6 @@ npm-debug.log*
 # Imágenes subidas por los vendedores en tiempo de ejecución
 uploads/platos/*
 !uploads/platos/.gitkeep
+
+# Archivos de exportación de datos: contienen hashes y datos de usuarios
+datos-foodiebyte*.json

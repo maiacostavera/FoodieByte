@@ -19,6 +19,12 @@
  *   node scripts/migrar-mysql-a-postgres.js --reparar-codificacion
  *                                                       (arregla acentos rotos)
  *
+ * Si MySQL y PostgreSQL están en máquinas distintas, la migración se parte
+ * en dos y solo viaja el archivo intermedio:
+ *
+ *   (en la máquina con MySQL)      --exportar datos-foodiebyte.json
+ *   (en la máquina con PostgreSQL) --importar datos-foodiebyte.json
+ *
  * Requisitos previos:
  *   1. Los datos de conexión a MySQL en el .env (variables MYSQL_*).
  *   2. La base PostgreSQL creada y migrada: npm run db:create && npm run db:migrate
@@ -27,6 +33,8 @@
 
 require('dotenv').config({ quiet: true });
 
+const fs = require('fs');
+const path = require('path');
 const mysql = require('mysql2/promise');
 const db = require('../models');
 const { sequelize } = db;
@@ -35,6 +43,20 @@ const ARGS = process.argv.slice(2);
 const SIMULACRO = ARGS.includes('--dry-run');
 const FORZAR = ARGS.includes('--force');
 const REPARAR_CODIFICACION = ARGS.includes('--reparar-codificacion');
+
+/** Lee el valor de una bandera del estilo --clave valor o --clave=valor. */
+const valorDeBandera = (nombre) => {
+  const conIgual = ARGS.find(a => a.startsWith(`${nombre}=`));
+  if (conIgual) return conIgual.slice(nombre.length + 1);
+  const i = ARGS.indexOf(nombre);
+  return i !== -1 && ARGS[i + 1] && !ARGS[i + 1].startsWith('--') ? ARGS[i + 1] : null;
+};
+
+// Permiten separar la migración en dos mitades cuando MySQL y PostgreSQL
+// están en máquinas distintas: se exporta donde vive MySQL y se importa
+// donde vive PostgreSQL, moviendo únicamente el archivo intermedio.
+const ARCHIVO_EXPORTAR = valorDeBandera('--exportar');
+const ARCHIVO_IMPORTAR = valorDeBandera('--importar');
 
 const ROLES_VALIDOS = ['foodie', 'vendedor', 'admin'];
 const ESTADOS_VALIDOS = ['Pendiente', 'Enviado', 'Rechazado'];
@@ -497,9 +519,18 @@ async function migrar() {
   log('╚══════════════════════════════════════════════════════════╝');
   if (SIMULACRO) log('\n🔍 MODO SIMULACRO: se lee y se valida todo, pero no se escribe nada.');
 
-  // --- Conexión al origen ---
-  let conexion;
+  if (ARCHIVO_EXPORTAR) log(`\n📤 MODO EXPORTACIÓN: se lee MySQL y se escribe ${ARCHIVO_EXPORTAR}. No se toca PostgreSQL.`);
+  if (ARCHIVO_IMPORTAR) log(`\n📥 MODO IMPORTACIÓN: se lee ${ARCHIVO_IMPORTAR} y se escribe en PostgreSQL. No se necesita MySQL.`);
+
+  if (ARCHIVO_EXPORTAR && ARCHIVO_IMPORTAR) {
+    log('\n❌ --exportar e --importar no se pueden combinar: elegí una de las dos.');
+    process.exit(1);
+  }
+
+  // --- Conexión al origen (no hace falta al importar desde archivo) ---
+  let conexion = null;
   try {
+    if (ARCHIVO_IMPORTAR) throw { saltear: true };
     conexion = await mysql.createConnection({
       host: process.env.MYSQL_HOST || '127.0.0.1',
       port: Number(process.env.MYSQL_PORT) || 3306,
@@ -513,87 +544,166 @@ async function migrar() {
     });
     log(`\n✅ Conectado al origen MySQL: ${baseDatos}`);
   } catch (err) {
-    log(`\n❌ No se pudo conectar a MySQL: ${err.message}`);
-    log('   Revisá las variables MYSQL_* del .env y que MySQL esté encendido en XAMPP.');
-    process.exit(1);
+    if (!err.saltear) {
+      log(`\n❌ No se pudo conectar a MySQL: ${err.message}`);
+      log('   Revisá las variables MYSQL_* del .env y que MySQL esté encendido en XAMPP.');
+      process.exit(1);
+    }
   }
 
-  // --- Conexión al destino ---
-  try {
-    await sequelize.authenticate();
-    log(`✅ Conectado al destino PostgreSQL: ${sequelize.config.database}`);
-  } catch (err) {
-    log(`\n❌ No se pudo conectar a PostgreSQL: ${err.message}`);
-    log('   Revisá las variables DB_* del .env y que hayas corrido: npm run db:migrate');
-    await conexion.end();
-    process.exit(1);
+  // --- Conexión al destino (no hace falta al exportar a archivo) ---
+  let usuariosEnDestino = 0;
+  if (!ARCHIVO_EXPORTAR) {
+    try {
+      await sequelize.authenticate();
+      log(`✅ Conectado al destino PostgreSQL: ${sequelize.config.database}`);
+    } catch (err) {
+      log(`\n❌ No se pudo conectar a PostgreSQL: ${err.message}`);
+      log('   Revisá las variables DB_* del .env y que hayas corrido: npm run db:migrate');
+      if (conexion) await conexion.end();
+      process.exit(1);
+    }
+    usuariosEnDestino = await db.Usuario.count();
   }
 
   // --- El destino debe estar vacío ---
-  const usuariosEnDestino = await db.Usuario.count();
   if (usuariosEnDestino > 0 && !FORZAR && !SIMULACRO) {
     log(`\n⚠️  El destino ya tiene ${usuariosEnDestino} usuarios.`);
     log('   Para no mezclar datos, la migración se detiene acá.');
     log('   Si querés reemplazarlos, volvé a empezar de cero:');
     log('     npm run db:reset  (y después no corras el seed)');
     log('   O ejecutá este script con --force para borrar el destino y migrar encima.');
-    await conexion.end();
+    if (conexion) await conexion.end();
     await sequelize.close();
     process.exit(1);
   }
 
-  // --- Lectura y transformación ---
-  const origen = await leerOrigen(conexion, baseDatos);
+  let usuarios, platos, pedidos, items, preguntas;
 
-  log('\n📊 Contenido de la base de origen:');
-  log(`   Usuarios: ${origen.usuarios.length}`);
-  log(`   Platos:   ${origen.platos.length}`);
-  log(`   Pedidos:  ${origen.pedidos.length}`);
-  if (origen.esquemaNuevo) log(`   Líneas de pedido: ${origen.items.length}`);
-  log(`   Preguntas: ${origen.preguntas.length}`);
-
-  if (origen.ignoradas.length > 0) {
-    log('\n📌 Tablas de versiones anteriores que NO se migran (el modelo actual no las tiene):');
-    for (const { tabla, filas } of origen.ignoradas) {
-      log(`   ${tabla}: ${filas} fila(s)`);
+  if (ARCHIVO_IMPORTAR) {
+    // --- Lectura desde el archivo intermedio ---
+    let paquete;
+    try {
+      paquete = JSON.parse(fs.readFileSync(path.resolve(ARCHIVO_IMPORTAR), 'utf8'));
+    } catch (err) {
+      log(`\n❌ No se pudo leer el archivo ${ARCHIVO_IMPORTAR}: ${err.message}`);
+      await sequelize.close();
+      process.exit(1);
     }
-    log('   Quedan intactas en MySQL por si las necesitás.');
+
+    if (!paquete.datos || !Array.isArray(paquete.datos.usuarios)) {
+      log(`\n❌ El archivo ${ARCHIVO_IMPORTAR} no tiene el formato esperado.`);
+      log('   Tiene que ser el que genera este mismo script con --exportar.');
+      await sequelize.close();
+      process.exit(1);
+    }
+
+    ({ usuarios, platos, pedidos, items, preguntas } = paquete.datos);
+
+    // Las fechas viajan como texto en JSON y hay que devolverlas a Date.
+    const aFechaSiExiste = (v) => (v ? new Date(v) : null);
+    for (const grupo of [usuarios, platos, pedidos, items, preguntas]) {
+      for (const fila of grupo) {
+        if (fila.createdAt) fila.createdAt = new Date(fila.createdAt);
+        if (fila.updatedAt) fila.updatedAt = new Date(fila.updatedAt);
+        if ('solicitud_fecha' in fila) fila.solicitud_fecha = aFechaSiExiste(fila.solicitud_fecha);
+        if ('respondidaEn' in fila) fila.respondidaEn = aFechaSiExiste(fila.respondidaEn);
+      }
+    }
+
+    log(`\n📦 Archivo generado el ${paquete.generado} desde la base "${paquete.origen}"`);
+    log(`   Esquema de origen: ${paquete.esquemaOrigen}`);
+
+    resumen.push(['Usuarios', usuarios.length, usuarios.length]);
+    resumen.push(['Platos', platos.length, platos.length]);
+    resumen.push(['Pedidos', pedidos.length, pedidos.length]);
+    resumen.push(['Líneas de pedido', items.length, items.length]);
+    resumen.push(['Preguntas', preguntas.length, preguntas.length]);
+
+    if (Array.isArray(paquete.advertencias) && paquete.advertencias.length > 0) {
+      log(`\n📌 La exportación registró ${paquete.advertencias.length} advertencia(s):`);
+      for (const a of paquete.advertencias) log(`   ⚠️  ${a}`);
+    }
+  } else {
+    // --- Lectura y transformación desde MySQL ---
+    const origen = await leerOrigen(conexion, baseDatos);
+
+    log('\n📊 Contenido de la base de origen:');
+    log(`   Usuarios: ${origen.usuarios.length}`);
+    log(`   Platos:   ${origen.platos.length}`);
+    log(`   Pedidos:  ${origen.pedidos.length}`);
+    if (origen.esquemaNuevo) log(`   Líneas de pedido: ${origen.items.length}`);
+    log(`   Preguntas: ${origen.preguntas.length}`);
+
+    if (origen.ignoradas.length > 0) {
+      log('\n📌 Tablas de versiones anteriores que NO se migran (el modelo actual no las tiene):');
+      for (const { tabla, filas } of origen.ignoradas) {
+        log(`   ${tabla}: ${filas} fila(s)`);
+      }
+      log('   Quedan intactas en MySQL por si las necesitás.');
+    }
+
+    log('\n🔧 Transformando y validando…');
+
+    usuarios = transformarUsuarios(origen.usuarios, origen.colUsuarios);
+    const idsUsuarios = new Set(usuarios.map(u => u.id));
+
+    // Si algún plato quedó huérfano, se le asigna un vendedor real de la base.
+    const vendedorPorDefecto = (usuarios.find(u => u.rol === 'vendedor')
+      || usuarios.find(u => u.rol === 'admin')
+      || usuarios[0] || {}).id || null;
+
+    platos = transformarPlatos(origen.platos, origen.colPlatos, idsUsuarios, vendedorPorDefecto);
+    const idsPlatos = new Set(platos.map(p => p.id));
+    const platosPorId = new Map(platos.map(p => [p.id, p]));
+
+    pedidos = transformarPedidos(origen.pedidos, idsUsuarios);
+    const idsPedidos = new Set(pedidos.map(p => p.id));
+
+    items = origen.esquemaNuevo
+      ? transformarItems(origen.items, idsPedidos, idsPlatos, idsUsuarios)
+      : derivarItemsDesdeJSON(origen.pedidos, pedidos, platosPorId);
+
+    preguntas = transformarPreguntas(origen.preguntas, idsPlatos, idsUsuarios);
+
+    resumen.push(['Usuarios', origen.usuarios.length, usuarios.length]);
+    resumen.push(['Platos', origen.platos.length, platos.length]);
+    resumen.push(['Pedidos', origen.pedidos.length, pedidos.length]);
+    resumen.push(['Líneas de pedido', origen.esquemaNuevo ? origen.items.length : '(desde JSON)', items.length]);
+    resumen.push(['Preguntas', origen.preguntas.length, preguntas.length]);
+
+    // --- Exportación al archivo intermedio ---
+    if (ARCHIVO_EXPORTAR) {
+      const destino = path.resolve(ARCHIVO_EXPORTAR);
+      const paquete = {
+        generado: new Date().toISOString(),
+        origen: baseDatos,
+        esquemaOrigen: origen.esquemaNuevo ? 'nuevo' : 'anterior',
+        advertencias,
+        datos: { usuarios, platos, pedidos, items, preguntas }
+      };
+
+      fs.writeFileSync(destino, JSON.stringify(paquete, null, 2), 'utf8');
+      const kb = (fs.statSync(destino).size / 1024).toFixed(1);
+
+      imprimirResumen();
+      log(`\n📤 Datos exportados a ${destino} (${kb} KB)`);
+      log('\n   Llevá ese archivo a la máquina donde está PostgreSQL y ahí ejecutá:');
+      log(`     npm run db:create && npm run db:migrate`);
+      log(`     node scripts/migrar-mysql-a-postgres.js --importar ${path.basename(destino)}`);
+      log('\n   Las imágenes de los platos son archivos aparte: copiá también');
+      log('   la carpeta server/uploads/platos/ si querés conservarlas.\n');
+
+      await conexion.end();
+      process.exit(0);
+    }
   }
-
-  log('\n🔧 Transformando y validando…');
-
-  const usuarios = transformarUsuarios(origen.usuarios, origen.colUsuarios);
-  const idsUsuarios = new Set(usuarios.map(u => u.id));
-
-  // Si algún plato quedó huérfano, se le asigna un vendedor real de la base.
-  const vendedorPorDefecto = (usuarios.find(u => u.rol === 'vendedor')
-    || usuarios.find(u => u.rol === 'admin')
-    || usuarios[0] || {}).id || null;
-
-  const platos = transformarPlatos(origen.platos, origen.colPlatos, idsUsuarios, vendedorPorDefecto);
-  const idsPlatos = new Set(platos.map(p => p.id));
-  const platosPorId = new Map(platos.map(p => [p.id, p]));
-
-  const pedidos = transformarPedidos(origen.pedidos, idsUsuarios);
-  const idsPedidos = new Set(pedidos.map(p => p.id));
-
-  const items = origen.esquemaNuevo
-    ? transformarItems(origen.items, idsPedidos, idsPlatos, idsUsuarios)
-    : derivarItemsDesdeJSON(origen.pedidos, pedidos, platosPorId);
-
-  const preguntas = transformarPreguntas(origen.preguntas, idsPlatos, idsUsuarios);
-
-  resumen.push(['Usuarios', origen.usuarios.length, usuarios.length]);
-  resumen.push(['Platos', origen.platos.length, platos.length]);
-  resumen.push(['Pedidos', origen.pedidos.length, pedidos.length]);
-  resumen.push(['Líneas de pedido', origen.esquemaNuevo ? origen.items.length : '(desde JSON)', items.length]);
-  resumen.push(['Preguntas', origen.preguntas.length, preguntas.length]);
 
   if (SIMULACRO) {
     imprimirResumen();
     log('\n🔍 Simulacro terminado: no se escribió nada en PostgreSQL.');
     log('   Si el resumen te cierra, volvé a correrlo sin --dry-run.');
-    await conexion.end();
+    if (conexion) await conexion.end();
     await sequelize.close();
     return;
   }
@@ -638,7 +748,7 @@ async function migrar() {
     log(`\n❌ La migración falló y se revirtió por completo: ${err.message}`);
     log('   La base PostgreSQL quedó como estaba. No se migró nada a medias.');
     console.error(err);
-    await conexion.end();
+    if (conexion) await conexion.end();
     await sequelize.close();
     process.exit(1);
   }
@@ -674,7 +784,7 @@ async function migrar() {
 
   imprimirResumen();
 
-  await conexion.end();
+  if (conexion) await conexion.end();
   await sequelize.close();
 
   if (!todoOk) {

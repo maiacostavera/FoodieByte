@@ -198,6 +198,13 @@ las relaciones y las rutas de las imágenes siguen siendo válidas.
 | `--dry-run` | Simula la migración completa sin escribir en PostgreSQL |
 | `--force` | Vacía el destino antes de migrar (por defecto se niega a escribir sobre datos existentes) |
 | `--reparar-codificacion` | Arregla los acentos y las ñ que hayan quedado mal codificados en el origen |
+| `--exportar <archivo>` | Lee MySQL y guarda los datos en un JSON, sin tocar PostgreSQL |
+| `--importar <archivo>` | Escribe en PostgreSQL desde ese JSON, sin necesitar MySQL |
+
+Las dos últimas sirven cuando MySQL y PostgreSQL están en máquinas distintas:
+se exporta donde vive MySQL, se copia el archivo, y se importa donde vive
+PostgreSQL. El JSON contiene hashes de contraseñas y datos de usuarios, así que
+no debe subirse al repositorio.
 
 ### Qué resuelve
 

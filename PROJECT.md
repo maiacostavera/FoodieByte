@@ -15,9 +15,10 @@ FoodieByte es una plataforma de gestión gastronómica (proyecto final de carrer
 con tres roles: foodie, vendedor y administrador. Stack: React 19 + Vite en el
 frontend, Node/Express + Sequelize en el backend, **PostgreSQL** en la base.
 
-El código está terminado y verificado. **Lo que falta es un paso operativo que
-solo puede hacer la dueña del proyecto en su máquina**: migrar los datos de su
-MySQL local a PostgreSQL. Ver [Qué queda pendiente](#qué-queda-pendiente).
+El código está terminado y verificado. **Falta un único paso operativo: migrar
+los datos del MySQL original a PostgreSQL.** El procedimiento completo, incluido
+el caso en que las dos bases estén en máquinas distintas, está en la sección
+siguiente.
 
 | | Estado |
 |---|---|
@@ -25,12 +26,147 @@ MySQL local a PostgreSQL. Ver [Qué queda pendiente](#qué-queda-pendiente).
 | Pruebas de integración | ✅ 36/36 contra PostgreSQL real |
 | ESLint del frontend | ✅ 0 errores |
 | Build de producción | ✅ Compila |
-| Migración de datos de la dueña | ⚠️ **Pendiente**, bloqueada por configuración local |
+| Migración de los datos a PostgreSQL | ⚠️ **Pendiente** — ver la sección siguiente |
+
+---
+
+# ⚠️ TAREA PENDIENTE — leer antes de cualquier otra cosa
+
+**Hay exactamente una tarea sin terminar: migrar los datos de MySQL a
+PostgreSQL.** El código está listo y verificado; esto es un paso operativo que
+no se pudo ejecutar porque depende de las bases locales de la dueña.
+
+Todo lo necesario está en el repositorio. Este es el procedimiento completo.
+
+## Antes de empezar: ¿dónde está cada base?
+
+Los datos originales viven en un **MySQL de XAMPP en la máquina de la dueña**
+(`foodiebyte_db`: 7 usuarios, 28 platos, 20 pedidos). Según dónde trabajes,
+cambia el camino:
+
+| Situación | Camino |
+|---|---|
+| Trabajás en la máquina que tiene el MySQL original | **Camino A** (directo) |
+| Trabajás en otra máquina | **Camino B** (en dos mitades) |
+| Los datos de prueba ya no importan | **Camino C** (empezar limpio) |
+
+---
+
+## Camino A — MySQL y PostgreSQL en la misma máquina
+
+Con MySQL encendido en XAMPP y PostgreSQL corriendo, parado en `server/`:
+
+```bash
+npm install
+npm run db:check      # NO AVANZAR hasta que diga "Conexión establecida correctamente"
+npm run db:create
+npm run db:migrate    # NO correr db:seed: los datos los trae la migración
+node scripts/migrar-mysql-a-postgres.js --dry-run
+npm run migrar:mysql
+```
+
+## Camino B — Las bases están en máquinas distintas
+
+La migración se parte en dos y solo viaja un archivo JSON.
+
+**En la máquina que tiene el MySQL** (solo necesita MySQL, no PostgreSQL):
+
+```bash
+node scripts/migrar-mysql-a-postgres.js --exportar datos-foodiebyte.json
+```
+
+Genera un JSON con los datos ya transformados y validados. Pesa unos pocos KB.
+Copiá también `server/uploads/platos/` si querés conservar las fotos: son
+archivos en disco, no están en la base.
+
+**En la máquina que tiene PostgreSQL** (no necesita MySQL):
+
+```bash
+npm run db:check
+npm run db:create && npm run db:migrate
+node scripts/migrar-mysql-a-postgres.js --importar datos-foodiebyte.json
+```
+
+> No subas el JSON al repositorio: contiene los hashes de las contraseñas y los
+> datos de los usuarios.
+
+## Camino C — Empezar limpio
+
+Si se decide que los datos de prueba no valen la pena, no hay migración:
+
+```bash
+npm run db:setup
+```
+
+Crea el esquema y carga datos de ejemplo: un administrador y **dos locales** con
+diez platos repartidos entre ambos, pensados para poder demostrar el aislamiento
+entre vendedores.
+
+---
+
+## El bloqueo que hay que resolver primero
+
+La dueña quedó trabada acá, y es lo primero con lo que te vas a encontrar:
+
+```
+ERROR: la autenticación password falló para el usuario «postgres»
+```
+
+**Ese mensaje es ambiguo:** aparece igual si la contraseña está mal, si falta el
+`.env` (el código cae en el usuario `postgres` por defecto), o si el archivo
+quedó como `.env.txt`, que es lo que hace el Bloc de notas de Windows al guardar
+un archivo nuevo.
+
+`npm run db:check` distingue los cuatro casos y dice cuál es. **Corrélo primero
+y no avances hasta que dé verde**, porque todos los comandos siguientes fallan
+con el mismo error hasta que la conexión funcione.
+
+Para crear el `.env` en Windows sin que quede como `.env.txt`:
+
+```
+copy .env.example .env
+notepad .env
+```
+
+El Bloc de notas agrega `.txt` a los archivos nuevos, pero conserva el nombre al
+abrir uno que ya existe.
+
+## Qué esperar del `--dry-run`
+
+Con la base real tiene que decir **`ANTERIOR (productos en JSON)`** y mostrar
+`7 / 28 / 20` coincidiendo en las dos columnas. Va a informar además:
+
+- Tres tablas que no se migran (`comentarios`, `valoraciones`, `categoria`).
+  Es correcto: las primeras dos están vacías y el modelo actual no las tiene.
+- Cuántas fotos se recuperaron de la columna `imagen`.
+- Si hay acentos rotos (`🔤`). En ese caso, agregá `--reparar-codificacion`.
+
+El `--dry-run` no escribe nada. La migración real corre en una transacción: si
+algo falla, PostgreSQL queda intacto. **MySQL nunca se modifica**, solo se lee.
+
+## Cómo saber que salió bien
+
+```bash
+npm test                                    # 36/36
+npm start                                   # y en client/: npm run dev
+```
+
+En la aplicación: el catálogo tiene que mostrar los 28 platos, cada vendedor solo
+su propio inventario, y la pestaña de liquidaciones del admin con importes
+calculados. Los usuarios entran con sus contraseñas de siempre: los hashes se
+migran tal cual.
+
+## Cuando termines
+
+Actualizá este documento: mové esta sección a "completado" y borrá la fila
+pendiente de la tabla de estado. El resto del archivo explica **por qué** el
+código quedó como quedó, y sigue siendo válido.
 
 ---
 
 ## Índice
 
+- [⚠️ TAREA PENDIENTE](#️-tarea-pendiente--leer-antes-de-cualquier-otra-cosa)
 - [De dónde viene el proyecto](#de-dónde-viene-el-proyecto)
 - [Qué se corrigió](#qué-se-corrigió)
 - [La historia de la base de datos](#la-historia-de-la-base-de-datos)
@@ -202,6 +338,12 @@ relaciones ni las rutas de las imágenes.
 Banderas: `--dry-run` (simula sin escribir), `--force` (vacía el destino antes),
 `--reparar-codificacion` (arregla acentos rotos).
 
+Y para cuando las dos bases están en máquinas distintas, la migración se puede
+partir en dos mitades que solo comparten un archivo JSON: `--exportar <archivo>`
+lee MySQL y escribe el archivo sin tocar PostgreSQL, y `--importar <archivo>`
+escribe en PostgreSQL sin necesitar MySQL. Verificado con el servidor MySQL
+apagado durante la importación.
+
 ### Los cuatro problemas que aparecieron al probarlo contra datos reales
 
 Cada uno se descubrió replicando la base real y ejecutando la migración, no
@@ -270,9 +412,11 @@ reales, y en cada una se comprobó el contenido, no solo los conteos:
 
 ## Qué queda pendiente
 
-### Lo único que bloquea: la migración en la máquina de la dueña
+### Lo único que bloquea: la migración de los datos
 
-**Estado: sin ejecutar.** No es un problema de código. La migración tiene que
+**Estado: sin ejecutar.** El procedimiento completo está al principio de este
+documento, en [TAREA PENDIENTE](#️-tarea-pendiente--leer-antes-de-cualquier-otra-cosa).
+Lo que sigue es el contexto de por qué quedó trabada. No es un problema de código. La migración tiene que
 correrse donde viven las dos bases, y quedó trabada en la configuración local:
 `sequelize` fallaba con *"la autenticación password falló para el usuario
 postgres"*.
