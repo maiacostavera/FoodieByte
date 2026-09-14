@@ -32,19 +32,29 @@ const AppProvider = ({ children }) => {
 
     const login = useCallback((datosUsuario, tokenRecibido) => {
         localStorage.setItem(CLAVE_TOKEN, tokenRecibido);
-        localStorage.setItem(CLAVE_USUARIO, JSON.stringify(datosUsuario));
         setToken(tokenRecibido);
         setUsuario(datosUsuario);
     }, []);
 
     const logout = useCallback(() => {
         localStorage.removeItem(CLAVE_TOKEN);
-        localStorage.removeItem(CLAVE_USUARIO);
         localStorage.removeItem(CLAVE_CARRITO);
         setToken(null);
         setUsuario(null);
         setCarrito([]);
     }, []);
+
+    /** Actualiza datos del usuario en sesión sin volver a pedir el perfil. */
+    const actualizarUsuario = useCallback((cambios) => {
+        setUsuario(prev => (prev ? { ...prev, ...cambios } : prev));
+    }, []);
+
+    // La sesión guardada sigue al estado: login, perfil y cualquier
+    // actualización quedan persistidos desde un solo lugar.
+    useEffect(() => {
+        if (usuario) localStorage.setItem(CLAVE_USUARIO, JSON.stringify(usuario));
+        else localStorage.removeItem(CLAVE_USUARIO);
+    }, [usuario]);
 
     // Si la API responde 401 (token vencido, cuenta eliminada o permisos
     // cambiados), se cierra la sesión y se muestra el motivo que da el
@@ -57,7 +67,7 @@ const AppProvider = ({ children }) => {
     }, [logout, mostrarAviso]);
 
     // Revalida contra el servidor la sesión guardada en el navegador: si el
-    // admin cambió el rol del usuario, el frontend se entera al recargar.
+    // admin cambió algo del usuario, el frontend se entera al recargar.
     useEffect(() => {
         if (!token) return;
         let cancelado = false;
@@ -65,9 +75,13 @@ const AppProvider = ({ children }) => {
         api.get('/usuarios/perfil')
             .then(({ data }) => {
                 if (cancelado) return;
-                const actualizado = { id: data.id, nombre: data.nombre, rol: data.rol, email: data.email };
-                localStorage.setItem(CLAVE_USUARIO, JSON.stringify(actualizado));
-                setUsuario(actualizado);
+                setUsuario({
+                    id: data.id,
+                    nombre: data.nombre,
+                    rol: data.rol,
+                    email: data.email,
+                    solicitud_vendedor: Boolean(data.solicitud_vendedor)
+                });
             })
             .catch(() => { /* el interceptor ya maneja el 401 */ });
 
@@ -80,23 +94,21 @@ const AppProvider = ({ children }) => {
     }, [carrito]);
 
     const agregarAlCarrito = useCallback((plato, cantidadSeleccionada = 1) => {
+        const existente = carrito.find(item => item.id === plato.id);
+        const yaEnCarrito = existente ? existente.cantidad : 0;
+        const stockDisponible = Number(plato.stock ?? 0);
+
+        // No dejamos armar un carrito que el backend va a rechazar por stock.
+        if (yaEnCarrito + cantidadSeleccionada > stockDisponible) {
+            mostrarAviso(`Solo quedan ${stockDisponible} unidades de "${plato.nombre}".`, 'error');
+            return;
+        }
+
+        // El aviso se muestra fuera de setCarrito: una función de actualización
+        // de estado tiene que ser pura, y React puede ejecutarla dos veces.
         setCarrito((prev) => {
-            const existente = prev.find(item => item.id === plato.id);
-            const yaEnCarrito = existente ? existente.cantidad : 0;
-            const stockDisponible = Number(plato.stock ?? 0);
-
-            // No dejamos armar un carrito que el backend va a rechazar por stock.
-            if (yaEnCarrito + cantidadSeleccionada > stockDisponible) {
-                mostrarAviso(
-                    `Solo quedan ${stockDisponible} unidades de "${plato.nombre}".`,
-                    'error'
-                );
-                return prev;
-            }
-
-            mostrarAviso(`"${plato.nombre}" se agregó al carrito.`, 'exito');
-
-            if (existente) {
+            const enCarrito = prev.find(item => item.id === plato.id);
+            if (enCarrito) {
                 return prev.map(item =>
                     item.id === plato.id
                         ? { ...item, cantidad: item.cantidad + cantidadSeleccionada }
@@ -105,7 +117,8 @@ const AppProvider = ({ children }) => {
             }
             return [...prev, { ...plato, cantidad: cantidadSeleccionada }];
         });
-    }, [mostrarAviso]);
+        mostrarAviso(`"${plato.nombre}" se agregó al carrito.`, 'exito');
+    }, [carrito, mostrarAviso]);
 
     const disminuirDelCarrito = useCallback((id) => {
         setCarrito((prev) => {
@@ -156,13 +169,13 @@ const AppProvider = ({ children }) => {
     }, [carrito, mostrarAviso, vaciarCarrito]);
 
     const valor = useMemo(() => ({
-        usuario, token, login, logout,
+        usuario, token, login, logout, actualizarUsuario,
         carrito, totalCarrito, cantidadEnCarrito,
         agregarAlCarrito, eliminarDelCarrito, disminuirDelCarrito, vaciarCarrito,
         enviarPedidoAlServidor,
         aviso, mostrarAviso, cerrarAviso
     }), [
-        usuario, token, login, logout,
+        usuario, token, login, logout, actualizarUsuario,
         carrito, totalCarrito, cantidadEnCarrito,
         agregarAlCarrito, eliminarDelCarrito, disminuirDelCarrito, vaciarCarrito,
         enviarPedidoAlServidor,

@@ -2,28 +2,34 @@ import { useState } from 'react';
 import logo from '../assets/logo.png';
 import api, { mensajeDeError } from '../api/client';
 import { useFoodie } from '../state/FoodieContext';
+import { LIMITES } from '../utils/limites';
+
+const formularioVacio = (categorias) => ({
+    nombreLocal: '', descripcionProductos: '', telefono: '', direccion: '',
+    categoria: categorias[0] || 'Pizzas'
+});
 
 function Navbar({
     nombreUsuario, rolUsuario, cerrarSesion, abrirLogin,
     verAdmin, setVerAdmin, busqueda, setBusqueda, ocultarBusqueda,
     alVerPerfil, cantidadCarrito, abrirCarrito, irAlInicio, categorias
 }) {
-    const { mostrarAviso } = useFoodie();
+    const { usuario, mostrarAviso, actualizarUsuario } = useFoodie();
 
     const [hoverPanel, setHoverPanel] = useState(false);
     const [hoverSalir, setHoverSalir] = useState(false);
     const [modalVendedor, setModalVendedor] = useState(false);
     const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
     const [errorSolicitud, setErrorSolicitud] = useState('');
-    const [formVendedor, setFormVendedor] = useState({
-        nombreLocal: '', descripcionProductos: '', telefono: '', direccion: '',
-        categoria: categorias[0] || 'Pizzas'
-    });
+    const [formVendedor, setFormVendedor] = useState(() => formularioVacio(categorias));
 
     const esGestor = rolUsuario === 'vendedor' || rolUsuario === 'admin';
     const estaLogueado = Boolean(nombreUsuario);
     // El alta de local solo tiene sentido para un foodie con sesión iniciada.
     const puedePostularse = estaLogueado && !esGestor;
+    // Si ya se postuló, se muestra el estado en lugar de ofrecer un formulario
+    // que el servidor va a rechazar por solicitud duplicada.
+    const solicitudEnRevision = Boolean(usuario?.solicitud_vendedor);
 
     const enviarSolicitudVendedor = async (e) => {
         e.preventDefault();
@@ -33,6 +39,8 @@ function Navbar({
         try {
             const { data } = await api.post('/usuarios/solicitar-vendedor', formVendedor);
             mostrarAviso(data.mensaje, 'exito');
+            actualizarUsuario({ solicitud_vendedor: true });
+            setFormVendedor(formularioVacio(categorias));
             setModalVendedor(false);
         } catch (err) {
             setErrorSolicitud(mensajeDeError(err, 'No se pudo enviar la solicitud.'));
@@ -61,7 +69,7 @@ function Navbar({
                         </svg>
                         <label htmlFor="buscador" style={{ display: 'none' }}>Buscar en el menú</label>
                         <input id="buscador" type="search" placeholder="Buscar en el menú…"
-                            value={busqueda}
+                            value={busqueda} maxLength={LIMITES.nombre}
                             onChange={(e) => setBusqueda(e.target.value)}
                             onFocus={() => document.getElementById('catalogo-menu')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                             style={estiloInputBusqueda} />
@@ -69,7 +77,9 @@ function Navbar({
                 ) : <div />}
 
                 <div style={estiloAcciones}>
-                    {puedePostularse && (
+                    {puedePostularse && (solicitudEnRevision ? (
+                        <span style={estiloSolicitudEnRevision}>Solicitud de local en revisión</span>
+                    ) : (
                         <button onClick={() => setModalVendedor(true)} style={estiloEnlaceSutil}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }} aria-hidden="true">
                                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -77,7 +87,7 @@ function Navbar({
                             </svg>
                             Quiero ser Vendedor
                         </button>
-                    )}
+                    ))}
 
                     {estaLogueado ? (
                         <>
@@ -133,14 +143,16 @@ function Navbar({
                             <div style={estiloCampo}>
                                 <label htmlFor="local-nombre" style={estiloLabelVendedor}>Nombre del Emprendimiento / Local</label>
                                 <input id="local-nombre" required type="text" placeholder="Ej: Pizzería La Nonna"
+                                    maxLength={LIMITES.nombreLocal}
                                     value={formVendedor.nombreLocal}
                                     onChange={e => actualizarForm('nombreLocal', e.target.value)} style={estiloInputVendedor} />
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                            <div style={estiloGrillaDoble}>
                                 <div style={estiloCampo}>
                                     <label htmlFor="local-telefono" style={estiloLabelVendedor}>Teléfono de Contacto</label>
                                     <input id="local-telefono" required type="tel" placeholder="Ej: 1123456789"
+                                        maxLength={LIMITES.telefono}
                                         value={formVendedor.telefono}
                                         onChange={e => actualizarForm('telefono', e.target.value)} style={estiloInputVendedor} />
                                 </div>
@@ -158,6 +170,7 @@ function Navbar({
                             <div style={estiloCampo}>
                                 <label htmlFor="local-direccion" style={estiloLabelVendedor}>Dirección Comercial</label>
                                 <input id="local-direccion" required type="text" placeholder="Ej: Av. Corrientes 1234, CABA"
+                                    maxLength={LIMITES.direccion}
                                     value={formVendedor.direccion}
                                     onChange={e => actualizarForm('direccion', e.target.value)} style={estiloInputVendedor} />
                             </div>
@@ -165,6 +178,7 @@ function Navbar({
                             <div style={estiloCampo}>
                                 <label htmlFor="local-descripcion" style={estiloLabelVendedor}>Breve descripción de los productos</label>
                                 <textarea id="local-descripcion" required placeholder="¿Qué tipo de comida vas a vender?"
+                                    maxLength={LIMITES.descripcion}
                                     value={formVendedor.descripcionProductos}
                                     onChange={e => actualizarForm('descripcionProductos', e.target.value)}
                                     style={{ ...estiloInputVendedor, minHeight: '80px', resize: 'vertical' }} />
@@ -197,6 +211,7 @@ const estiloBuscadorCentrado = { flex: '1 1 260px', maxWidth: '460px', display: 
 const estiloInputBusqueda = { flex: 1, border: 'none', outline: 'none', background: 'transparent', padding: '11px 0', fontSize: '0.95rem', color: '#212121', fontFamily: "'Poppins', sans-serif" };
 const estiloAcciones = { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' };
 const estiloEnlaceSutil = { display: 'flex', alignItems: 'center', color: '#757575', fontSize: '0.85rem', fontWeight: '500', cursor: 'pointer', background: 'none', border: 'none', fontFamily: "'Poppins', sans-serif" };
+const estiloSolicitudEnRevision = { color: '#f57f17', backgroundColor: '#fff8e1', fontSize: '0.8rem', fontWeight: '600', padding: '6px 10px', borderRadius: '4px' };
 const estiloLinkNav = { background: 'none', border: 'none', color: '#424242', fontSize: '0.9rem', fontWeight: '500', cursor: 'pointer', fontFamily: "'Poppins', sans-serif" };
 const estiloBotonCarrito = { display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#fafafa', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', color: '#424242', fontSize: '0.9rem', fontFamily: "'Poppins', sans-serif" };
 const estiloBadgeNav = { backgroundColor: '#d32f2f', color: '#ffffff', borderRadius: '10px', padding: '1px 8px', fontSize: '0.75rem', fontWeight: '700' };
@@ -205,9 +220,11 @@ const estiloNombreUsuario = { color: '#757575', fontSize: '0.85rem', fontWeight:
 const estiloBotonSalir = { background: 'transparent', border: '1px solid #e0e0e0', borderRadius: '4px', padding: '8px 16px', color: '#757575', fontSize: '0.85rem', fontWeight: '500', cursor: 'pointer', fontFamily: "'Poppins', sans-serif" };
 const estiloBotonLogin = { backgroundColor: '#d32f2f', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '10px 22px', fontWeight: '600', fontSize: '0.9rem', cursor: 'pointer', fontFamily: "'Poppins', sans-serif" };
 const estiloModalOverlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 4000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' };
-const estiloModalVendedor = { backgroundColor: '#ffffff', width: '100%', maxWidth: '540px', borderRadius: '8px', padding: '32px', boxShadow: '0 10px 40px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' };
+const estiloModalVendedor = { backgroundColor: '#ffffff', width: '100%', maxWidth: '540px', borderRadius: '8px', padding: 'clamp(20px, 5vw, 32px)', boxShadow: '0 10px 40px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' };
 const estiloHeaderModalVendedor = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid #eeeeee' };
 const estiloCerrarModalVendedor = { background: 'none', border: 'none', fontSize: '1.4rem', color: '#757575', cursor: 'pointer' };
+// Dos columnas en pantallas anchas y una sola en el celular.
+const estiloGrillaDoble = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' };
 const estiloCampo = { display: 'flex', flexDirection: 'column', gap: '8px' };
 const estiloLabelVendedor = { color: '#424242', fontSize: '0.88rem', fontWeight: '600' };
 const estiloInputVendedor = { padding: '12px', border: '1px solid #e0e0e0', borderRadius: '4px', fontSize: '0.95rem', fontFamily: "'Poppins', sans-serif", outline: 'none', backgroundColor: '#ffffff' };
