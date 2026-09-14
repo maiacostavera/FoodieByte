@@ -2,7 +2,8 @@ import { estilos, badgeEstado, formatearMoneda } from './estilos';
 
 /**
  * Comandas del panel de gestión. El vendedor solo recibe del servidor las
- * líneas de sus propios platos, y solo puede cambiar el estado de esas líneas.
+ * líneas de sus propios platos, y solo puede despachar o rechazar las que
+ * siguen pendientes: Enviado y Rechazado son estados finales.
  */
 function TablaComandas({ pedidos, rol, alCambiarEstado }) {
     if (pedidos.length === 0) {
@@ -48,15 +49,21 @@ function TablaComandas({ pedidos, rol, alCambiarEstado }) {
                                     <span style={badgeEstado(estado)}>{estado}</span>
                                 </td>
                                 <td style={estilos.celdaBody}>
-                                    {esVendedor ? (
-                                        <select value={estado}
-                                            onChange={(e) => alCambiarEstado(pedido.id, e.target.value)}
-                                            style={estilos.selectPequeno}
-                                            aria-label={`Cambiar estado del pedido ${pedido.id}`}>
-                                            <option value="Pendiente">Pendiente</option>
-                                            <option value="Enviado">Enviado</option>
-                                            <option value="Rechazado">Rechazado</option>
-                                        </select>
+                                    {esVendedor && estado === 'Pendiente' ? (
+                                        <div style={estiloAcciones}>
+                                            <button onClick={() => alCambiarEstado(pedido.id, 'Enviado')}
+                                                style={estiloBotonEnviar}
+                                                aria-label={`Marcar el pedido ${pedido.id} como enviado`}>
+                                                Marcar enviado
+                                            </button>
+                                            <button onClick={() => alCambiarEstado(pedido.id, 'Rechazado')}
+                                                style={estilos.botonEliminar}
+                                                aria-label={`Rechazar el pedido ${pedido.id}`}>
+                                                Rechazar
+                                            </button>
+                                        </div>
+                                    ) : esVendedor ? (
+                                        <span style={estiloTextoFinal}>Estado final</span>
                                     ) : (
                                         <span style={{ fontSize: '0.85rem', color: '#757575' }}>
                                             {items.length} línea{items.length === 1 ? '' : 's'}
@@ -71,5 +78,9 @@ function TablaComandas({ pedidos, rol, alCambiarEstado }) {
         </div>
     );
 }
+
+const estiloAcciones = { display: 'flex', gap: '8px', flexWrap: 'wrap' };
+const estiloBotonEnviar = { ...estilos.botonEditar, backgroundColor: '#2e7d32', marginRight: 0 };
+const estiloTextoFinal = { fontSize: '0.85rem', color: '#9e9e9e', fontStyle: 'italic' };
 
 export default TablaComandas;

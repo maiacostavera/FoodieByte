@@ -60,6 +60,12 @@ function AdminPanel({ rol, categorias, onRefreshPlatos, onDatosActualizados }) {
     useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
     const cambiarEstadoPedido = async (id, nuevoEstado) => {
+        // Enviado y Rechazado son finales: un clic equivocado no se puede deshacer.
+        const confirmacion = nuevoEstado === 'Rechazado'
+            ? `¿Rechazar el pedido #${id}? Las unidades vuelven al stock y no se puede deshacer.`
+            : `¿Marcar el pedido #${id} como enviado? No se puede deshacer.`;
+        if (!window.confirm(confirmacion)) return;
+
         try {
             await api.put(`/pedidos/${id}/estado`, { nuevoEstado });
             // Se recargan las comandas: en un pedido con varios locales, el
