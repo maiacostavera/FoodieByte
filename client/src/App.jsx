@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from './api/client';
 import { useFoodie } from './state/FoodieContext';
 import { imagenDelPlato } from './utils/imagenes';
+import { formatearMoneda } from './utils/formato';
 
 import Navbar from './components/Navbar';
 import Banner from './components/Banner';
@@ -14,9 +15,6 @@ import MisPedidos from './components/MisPedidos';
 import Login from './components/Login';
 import Signup from './components/Signup';
 import Carrito from './components/Carrito';
-
-const formatearMoneda = (valor) =>
-    `$${Number(valor || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function App() {
     const { usuario, logout, agregarAlCarrito, cantidadEnCarrito, mostrarAviso } = useFoodie();
@@ -37,6 +35,10 @@ function App() {
     const [mostrarAuth, setMostrarAuth] = useState(false);
     const [vistaAuth, setVistaAuth] = useState('login');
 
+    // Búsqueda en curso: se cancela cuando empieza otra. Sin esto, una
+    // respuesta lenta de "pi" podía llegar después y pisar la de "pizza".
+    const busquedaEnCurso = useRef(null);
+
     // La lista de categorías la define el backend: antes estaba escrita a mano
     // en tres archivos distintos y se habían desincronizado entre sí.
     useEffect(() => {
@@ -50,18 +52,23 @@ function App() {
     }, [usuario]);
 
     const buscarPlatos = useCallback(async (texto, categoria) => {
+        busquedaEnCurso.current?.abort();
+        const controlador = new AbortController();
+        busquedaEnCurso.current = controlador;
+
         setCargando(true);
         try {
             const params = {};
             if (texto && texto.trim() !== '') params.busqueda = texto.trim();
             if (categoria && categoria !== 'Todos') params.categoria = categoria;
 
-            const { data } = await api.get('/platos', { params });
+            const { data } = await api.get('/platos', { params, signal: controlador.signal });
             setPlatos(data);
-        } catch {
+        } catch (err) {
+            if (err.code === 'ERR_CANCELED') return;
             mostrarAviso('No se pudo cargar el menú. Verificá que el servidor esté corriendo.', 'error');
         } finally {
-            setCargando(false);
+            if (busquedaEnCurso.current === controlador) setCargando(false);
         }
     }, [mostrarAviso]);
 
@@ -72,6 +79,11 @@ function App() {
         return () => clearTimeout(temporizador);
     }, [busqueda, categoriaActiva, buscarPlatos]);
 
+    const refrescarCatalogo = useCallback(
+        () => buscarPlatos(busqueda, categoriaActiva),
+        [buscarPlatos, busqueda, categoriaActiva]
+    );
+
     const volverAlInicio = () => {
         setMostrarAuth(false);
         setVerAdmin(false);
@@ -79,16 +91,27 @@ function App() {
         setPlatoSeleccionado(null);
     };
 
-    const manejarIntencionCompra = (accion, parametro = null) => {
+    const pedirInicioDeSesion = (mensaje) => {
+        mostrarAviso(mensaje, 'info');
+        setPlatoSeleccionado(null);
+        setVistaAuth('login');
+        setMostrarAuth(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // La ficha del producto es pública: cualquiera puede ver el detalle y las
+    // consultas. La sesión se pide recién para comprar o preguntar.
+    const abrirDetalle = (plato) => {
+        setPlatoSeleccionado(plato);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const agregarDesdeCatalogo = (plato) => {
         if (!usuario) {
-            mostrarAviso('Para ver el detalle o armar tu pedido, iniciá sesión primero.', 'info');
-            setVistaAuth('login');
-            setMostrarAuth(true);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            pedirInicioDeSesion('Para armar tu pedido, iniciá sesión primero.');
             return;
         }
-        if (accion === 'detalle') setPlatoSeleccionado(parametro);
-        else if (accion === 'agregar') agregarAlCarrito(parametro);
+        agregarAlCarrito(plato);
     };
 
     const esGestor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin';
@@ -106,7 +129,7 @@ function App() {
                 abrirLogin={() => { setMostrarAuth(true); setVistaAuth('login'); }}
                 verAdmin={verAdmin}
                 setVerAdmin={(v) => { setVerAdmin(v); setMostrarAuth(false); setVerMisPedidos(false); setPlatoSeleccionado(null); }}
-                alVerPerfil={() => { setVerMisPedidos(true); setVerAdmin(false); setMostrarAuth(false); }}
+                alVerPerfil={() => { setVerMisPedidos(true); setVerAdmin(false); setMostrarAuth(false); setPlatoSeleccionado(null); }}
                 abrirCarrito={() => setVerCarrito(true)}
                 busqueda={busqueda}
                 setBusqueda={setBusqueda}
@@ -115,7 +138,9 @@ function App() {
                 irAlInicio={volverAlInicio}
             />
 
-            {verCarrito && <Carrito alCerrar={() => setVerCarrito(false)} />}
+            {verCarrito && (
+                <Carrito alCerrar={() => setVerCarrito(false)} alConfirmarCompra={refrescarCatalogo} />
+            )}
 
             {enPortada && <Banner />}
 
@@ -134,19 +159,20 @@ function App() {
                         <AdminPanel
                             rol={usuario.rol}
                             categorias={categorias}
-                            onRefreshPlatos={() => buscarPlatos(busqueda, categoriaActiva)}
+                            onRefreshPlatos={refrescarCatalogo}
                             onDatosActualizados={() => setVersionDatos(v => v + 1)}
                         />
                     </>
                 ) : verMisPedidos && usuario ? (
                     <MisPedidos alCerrar={() => setVerMisPedidos(false)} />
-                ) : platoSeleccionado && usuario ? (
+                ) : platoSeleccionado ? (
                     <DetalleProducto
                         plato={platoSeleccionado}
                         usuario={usuario}
                         alCerrar={() => setPlatoSeleccionado(null)}
                         alAgregar={agregarAlCarrito}
-                        onRefreshPlatos={() => buscarPlatos(busqueda, categoriaActiva)}
+                        alPedirLogin={pedirInicioDeSesion}
+                        onRefreshPlatos={refrescarCatalogo}
                     />
                 ) : (
                     <main id="catalogo-menu">
@@ -179,7 +205,7 @@ function App() {
                         ) : (
                             <div style={estiloGrilla}>
                                 {platos.map(plato => (
-                                    <article key={plato.id} onClick={() => manejarIntencionCompra('detalle', plato)} style={estiloCard}>
+                                    <article key={plato.id} onClick={() => abrirDetalle(plato)} style={estiloCard}>
                                         <div style={estiloImagenCard}>
                                             <img src={imagenDelPlato(plato.categoria, plato.imagenUrl)} alt={plato.nombre}
                                                 loading="lazy"
@@ -217,7 +243,7 @@ function App() {
                                                     </span>
                                                 ) : (
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); manejarIntencionCompra('agregar', plato); }}
+                                                        onClick={(e) => { e.stopPropagation(); agregarDesdeCatalogo(plato); }}
                                                         disabled={plato.stock === 0}
                                                         style={{ ...estiloBotonAgregar, opacity: plato.stock === 0 ? 0.5 : 1, cursor: plato.stock === 0 ? 'not-allowed' : 'pointer' }}>
                                                         {plato.stock === 0 ? 'Agotado' : 'Añadir'}
