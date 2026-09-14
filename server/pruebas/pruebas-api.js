@@ -734,6 +734,50 @@ async function ejecutar() {
   });
 
   // -------------------------------------------------------------------------
+  seccion('PERMISOS VIGENTES (el rol sale de la base, no del token)');
+
+  await prueba('Un vendedor al que le quitan el rol pierde el acceso con su token anterior', async () => {
+    const degradado = await crearUsuario('LocalDegradado', 'vendedor');
+    const cambio = await pedir('PUT', `/api/admin/usuarios/${degradado.usuario.id}/rol`, {
+      token: admin.token,
+      body: { nuevoRol: 'foodie' }
+    });
+    assert.strictEqual(cambio.estado, 200);
+
+    const nombre = `Plato con token viejo ${SUFIJO}`;
+    const { estado } = await pedir('POST', '/api/platos', {
+      token: degradado.token,
+      body: { nombre, precio: 100, stock: 1, categoria: 'Pizzas' }
+    });
+    assert.strictEqual(estado, 401);
+    assert.strictEqual(await Plato.count({ where: { nombre } }), 0, 'Se publicó un plato con un rol revocado');
+  });
+
+  await prueba('Al volver a iniciar sesión rige el rol nuevo', async () => {
+    const promovido = await crearUsuario('ClientePromovido', 'foodie');
+    await pedir('PUT', `/api/admin/usuarios/${promovido.usuario.id}/rol`, {
+      token: admin.token,
+      body: { nuevoRol: 'vendedor' }
+    });
+
+    const conTokenViejo = await pedir('GET', '/api/platos/mis-platos', { token: promovido.token });
+    assert.strictEqual(conTokenViejo.estado, 401, 'El token anterior al cambio de rol siguió sirviendo');
+
+    const login = await pedir('POST', '/api/usuarios/login', { body: { email: promovido.email, password: PASSWORD } });
+    const conTokenNuevo = await pedir('GET', '/api/platos/mis-platos', { token: login.datos.token });
+    assert.strictEqual(conTokenNuevo.estado, 200);
+  });
+
+  await prueba('Un usuario eliminado ya no puede usar su token', async () => {
+    const eliminado = await crearUsuario('ClienteEliminado', 'foodie');
+    const baja = await pedir('DELETE', `/api/admin/usuarios/${eliminado.usuario.id}`, { token: admin.token });
+    assert.strictEqual(baja.estado, 200);
+
+    const { estado } = await pedir('GET', '/api/pedidos/mis-pedidos', { token: eliminado.token });
+    assert.strictEqual(estado, 401);
+  });
+
+  // -------------------------------------------------------------------------
   seccion('APLICACIÓN (app.js)');
 
   await prueba('Una ruta inexistente responde 404 en JSON', async () => {
