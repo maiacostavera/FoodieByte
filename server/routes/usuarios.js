@@ -8,30 +8,41 @@ const { Usuario } = require('../models');
 const { autenticar } = require('../middleware/auth');
 const { JWT_SECRET, JWT_EXPIRES_IN, ROLES } = require('../config/seguridad');
 const { CATEGORIAS } = require('../config/categorias');
+const { LIMITES } = require('../config/limites');
+const { responderError } = require('../utils/errores');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// El body es JSON arbitrario: un campo puede llegar como número u objeto, y
+// llamar a .trim() sobre eso hacía fallar la ruta con un 500.
+const comoTexto = (valor) => (typeof valor === 'string' ? valor.trim() : '');
 
 // REGISTRO
 router.post('/register', async (req, res) => {
   try {
-    const { nombre, email, password } = req.body;
+    const nombre = comoTexto(req.body.nombre);
+    const email = comoTexto(req.body.email).toLowerCase();
+    const { password } = req.body;
 
-    if (!nombre || !email || !password) {
+    if (!nombre || !email || typeof password !== 'string' || !password) {
       return res.status(400).json({ mensaje: 'Todos los campos son obligatorios.' });
     }
-    if (nombre.trim().length < 2) {
-      return res.status(400).json({ mensaje: 'El nombre debe tener al menos 2 caracteres.' });
+    if (nombre.length < 2 || nombre.length > LIMITES.nombre) {
+      return res.status(400).json({ mensaje: `El nombre debe tener entre 2 y ${LIMITES.nombre} caracteres.` });
     }
-    if (!EMAIL_REGEX.test(email)) {
+    if (email.length > LIMITES.email || !EMAIL_REGEX.test(email)) {
       return res.status(400).json({ mensaje: 'El formato del email no es válido.' });
     }
     if (password.length < 6) {
       return res.status(400).json({ mensaje: 'La contraseña debe tener al menos 6 caracteres.' });
     }
+    // bcrypt descarta lo que pasa de 72 bytes: dos contraseñas iguales hasta
+    // ahí serían equivalentes sin que nadie lo note.
+    if (Buffer.byteLength(password, 'utf8') > LIMITES.password) {
+      return res.status(400).json({ mensaje: `La contraseña no puede superar los ${LIMITES.password} caracteres.` });
+    }
 
-    const emailNormalizado = email.trim().toLowerCase();
-
-    const existe = await Usuario.findOne({ where: { email: emailNormalizado } });
+    const existe = await Usuario.findOne({ where: { email } });
     if (existe) {
       return res.status(409).json({ mensaje: 'Este correo ya se encuentra registrado.' });
     }
@@ -40,29 +51,35 @@ router.post('/register', async (req, res) => {
 
     // El rol nunca se toma del body: todo registro público nace como foodie.
     await Usuario.create({
-      nombre: nombre.trim(),
-      email: emailNormalizado,
+      nombre,
+      email,
       password: hashedPassword,
       rol: ROLES.FOODIE
     });
 
     res.status(201).json({ mensaje: '¡Cuenta creada! Ya podés iniciar sesión.' });
   } catch (err) {
-    console.error('Error al registrar usuario:', err);
-    res.status(500).json({ mensaje: 'Error interno al registrarse.' });
+    // Dos altas simultáneas con el mismo email pasan la consulta previa: la
+    // restricción única de la base frena a la segunda y se informa como 409.
+    responderError(res, err, {
+      contexto: 'Error al registrar usuario',
+      mensaje: 'Error interno al registrarse.',
+      conflicto: 'Este correo ya se encuentra registrado.'
+    });
   }
 });
 
 // LOGIN
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = comoTexto(req.body.email).toLowerCase();
+    const { password } = req.body;
 
-    if (!email || !password) {
+    if (!email || typeof password !== 'string' || !password) {
       return res.status(400).json({ mensaje: 'Email y contraseña son obligatorios.' });
     }
 
-    const usuario = await Usuario.findOne({ where: { email: email.trim().toLowerCase() } });
+    const usuario = await Usuario.findOne({ where: { email } });
 
     // Mismo mensaje para email inexistente y contraseña incorrecta: si los
     // diferenciamos, cualquiera puede averiguar qué correos están registrados.
@@ -89,8 +106,7 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error al iniciar sesión:', err);
-    res.status(500).json({ mensaje: 'Error interno en el servidor.' });
+    responderError(res, err, { contexto: 'Error al iniciar sesión', mensaje: 'Error interno en el servidor.' });
   }
 });
 
@@ -104,20 +120,38 @@ router.get('/perfil', autenticar, async (req, res) => {
     if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
     res.json(usuario);
   } catch (err) {
-    console.error('Error al obtener el perfil:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener el perfil.' });
+    responderError(res, err, { contexto: 'Error al obtener el perfil', mensaje: 'Error interno al obtener el perfil.' });
   }
 });
 
 // SOLICITAR SER VENDEDOR
 router.post('/solicitar-vendedor', autenticar, async (req, res) => {
   try {
-    const { nombreLocal, descripcionProductos, telefono, direccion, categoria } = req.body;
+    const nombreLocal = comoTexto(req.body.nombreLocal);
+    const descripcionProductos = comoTexto(req.body.descripcionProductos);
+    const direccion = comoTexto(req.body.direccion);
+    // El teléfono puede llegar como número según el cliente que lo envíe.
+    const telefono = typeof req.body.telefono === 'number'
+      ? String(req.body.telefono)
+      : comoTexto(req.body.telefono);
+    const { categoria } = req.body;
 
     if (!nombreLocal || !descripcionProductos || !telefono || !direccion || !categoria) {
       return res.status(400).json({
         mensaje: 'Todos los campos (nombre, descripción, teléfono, dirección y categoría) son obligatorios.'
       });
+    }
+
+    const campos = [
+      ['nombre del local', nombreLocal, LIMITES.nombreLocal],
+      ['teléfono', telefono, LIMITES.telefono],
+      ['dirección', direccion, LIMITES.direccion],
+      ['descripción', descripcionProductos, LIMITES.descripcion]
+    ];
+    const excedido = campos.find(([, valor, limite]) => valor.length > limite);
+    if (excedido) {
+      const [campo, , limite] = excedido;
+      return res.status(400).json({ mensaje: `El campo ${campo} no puede superar los ${limite} caracteres.` });
     }
 
     const categoriasValidas = [...CATEGORIAS, 'Otros'];
@@ -140,17 +174,19 @@ router.post('/solicitar-vendedor', autenticar, async (req, res) => {
     await usuario.update({
       solicitud_vendedor: true,
       solicitud_fecha: new Date(),
-      nombre_local: nombreLocal.trim(),
-      descripcion_productos: descripcionProductos.trim(),
-      telefono: String(telefono).trim(),
-      direccion: direccion.trim(),
+      nombre_local: nombreLocal,
+      descripcion_productos: descripcionProductos,
+      telefono,
+      direccion,
       categoria_local: categoria
     });
 
     res.json({ mensaje: '¡Solicitud enviada con éxito! Un administrador la revisará pronto.' });
   } catch (err) {
-    console.error('Error al solicitar el alta de vendedor:', err);
-    res.status(500).json({ mensaje: 'Error interno al procesar la solicitud.' });
+    responderError(res, err, {
+      contexto: 'Error al solicitar el alta de vendedor',
+      mensaje: 'Error interno al procesar la solicitud.'
+    });
   }
 });
 

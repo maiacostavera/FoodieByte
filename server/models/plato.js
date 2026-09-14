@@ -20,7 +20,13 @@ module.exports = (sequelize, DataTypes) => {
     precio: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      validate: { min: 0.01 }
+      validate: { min: 0.01 },
+      // Igual que Pedido.total: PostgreSQL entrega DECIMAL como texto y la
+      // API devolvía "1200.00" en lugar de 1200.
+      get() {
+        const valor = this.getDataValue('precio');
+        return valor === null ? null : Number(valor);
+      }
     },
     categoria: DataTypes.STRING,
     imagenUrl: DataTypes.STRING,
