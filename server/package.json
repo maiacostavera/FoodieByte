@@ -17,7 +17,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "API REST de FoodieByte (Node.js + Express + Sequelize + MySQL)",
+  "description": "API REST de FoodieByte (Node.js + Express + Sequelize + PostgreSQL)",
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",

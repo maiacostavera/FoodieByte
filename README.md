@@ -80,7 +80,7 @@ Proyecto final de carrera — arquitectura full-stack adaptada a PostgreSQL.
 ```bash
 cd server
 npm install
-cp .env.example .env      # completá las credenciales de tu MySQL
+cp .env.example .env      # completá las credenciales de tu PostgreSQL
 npm run db:setup          # crea la base, corre las migraciones y carga los datos de ejemplo
 npm start                 # http://localhost:3000
 ```
@@ -313,6 +313,19 @@ Todas requieren rol `admin`.
 | `GET` | `/admin/estadisticas` |
 | `GET` | `/admin/comisiones-vendedores` |
 
+### Códigos de error
+
+Todas las respuestas de error tienen la forma `{ "mensaje": "..." }`.
+
+| Código | Cuándo |
+|---|---|
+| `400` | Datos inválidos: campos faltantes, tipos incorrectos, textos que superan el largo permitido o un id de la URL que no es un entero positivo |
+| `401` | Falta el token, es inválido o expiró |
+| `403` | El rol no alcanza, o el recurso pertenece a otro local |
+| `404` | El recurso no existe |
+| `409` | Conflicto: email ya registrado, stock insuficiente o solicitud de vendedor ya pendiente |
+| `500` | Error inesperado del servidor; el detalle queda solo en el log |
+
 ---
 
 ## Decisiones de diseño
@@ -350,6 +363,17 @@ ascendente de `id` para que dos compras simultáneas no se interbloqueen. Si
 cualquier ítem no tiene stock, la transacción se revierte completa y no se
 descuenta nada.
 
+### Los datos inválidos son un 400, no un 500
+
+PostgreSQL es estricto con los datos: rechaza un id como `"abc"` (MySQL lo
+convertía en 0 y la consulta no encontraba nada) y rechaza cualquier texto más
+largo que su columna. Para que eso no se vea como una caída del servidor:
+
+- `middleware/validarId.js` valida los ids de la URL antes de consultar la base.
+- `config/limites.js` concentra los largos máximos que validan las rutas.
+- `utils/errores.js` traduce cualquier error de datos que igual llegue a la base
+  en un 400 o un 409, y deja el 500 solo para fallas reales.
+
 ### Configuración por entorno
 
 Ni la clave de firma de los JWT, ni las credenciales de la base, ni la URL de la
@@ -365,13 +389,16 @@ cd server
 npm test
 ```
 
-Levanta la API contra la base configurada y verifica 36 escenarios agrupados en:
+Levanta la API contra la base configurada y verifica los escenarios críticos del
+sistema, agrupados en:
 
 - **Autenticación** — tokens inválidos, mensajes de login que no revelan qué correos existen, imposibilidad de auto-asignarse el rol `admin` al registrarse.
 - **Pedidos y stock** — descuento correcto, rechazo por falta de stock sin efectos colaterales, dos compras simultáneas del último plato disponible, precios inmunes a manipulación del cliente.
 - **Aislamiento entre locales** — un cliente no lee pedidos ajenos, un local no ve ni modifica las comandas ni los platos de otro, y en un pedido mixto cada local gestiona solo su parte.
 - **Administración** — control de acceso por rol y exactitud del cálculo de comisiones.
 - **Solicitudes y preguntas** — persistencia real de los datos y control de quién puede responder.
+- **Catálogo público** — acceso sin sesión, búsqueda del lado del servidor que toma `%` y `_` como texto, y precios devueltos como número.
+- **Datos inválidos** — ids no numéricos o fuera de rango, textos demasiado largos, tipos incorrectos y un mismo email registrado dos veces a la vez responden 400 o 409, nunca 500.
 
 Las pruebas crean y eliminan sus propios datos; aun así conviene ejecutarlas
 sobre una base de desarrollo.
@@ -395,8 +422,8 @@ FoodieByte/
 │   └── .env.example
 │
 └── server/
-    ├── config/                    Configuración de base, seguridad y categorías
-    ├── middleware/auth.js         Autenticación y control de roles
+    ├── config/                    Base de datos, seguridad, categorías y límites de los datos
+    ├── middleware/                Autenticación, control de roles y validación de ids
     ├── migrations/                Esquema versionado
     ├── models/                    Modelos de Sequelize
     ├── pruebas/                   Pruebas de integración
@@ -404,6 +431,7 @@ FoodieByte/
     ├── routes/                    usuarios · platos · pedidos · admin
     ├── seeders/                   Datos de ejemplo
     ├── uploads/platos/            Imágenes subidas por los vendedores
+    ├── utils/errores.js           Traducción de errores de la base a respuestas HTTP
     ├── .env.example
     └── index.js
 ```

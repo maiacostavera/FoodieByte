@@ -70,6 +70,7 @@ db.sequelize.authenticate()
   })
   .catch(err => {
     console.error('❌ No se pudo conectar a la base de datos:', err.message);
-    console.error('   Revisá las credenciales del archivo .env y que MySQL esté corriendo.');
+    console.error('   Revisá las credenciales del archivo .env y que PostgreSQL esté corriendo.');
+    console.error('   Para un diagnóstico detallado: npm run db:check');
     process.exit(1);
   });
