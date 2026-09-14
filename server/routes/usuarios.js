@@ -89,6 +89,12 @@ router.post('/login', async (req, res) => {
     const passwordValida = await bcrypt.compare(password, usuario.password);
     if (!passwordValida) return res.status(401).json(credencialesInvalidas);
 
+    // Se informa recién después de validar la contraseña: así no sirve para
+    // averiguar qué correos están registrados.
+    if (!usuario.activo) {
+      return res.status(403).json({ mensaje: 'Tu cuenta está desactivada. Contactá a un administrador.' });
+    }
+
     const token = jwt.sign(
       { id: usuario.id, rol: usuario.rol },
       JWT_SECRET,

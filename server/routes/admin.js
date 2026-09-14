@@ -24,7 +24,7 @@ router.get('/usuarios', async (req, res) => {
   try {
     const usuarios = await Usuario.findAll({
       attributes: [
-        'id', 'nombre', 'email', 'rol', 'createdAt', 'solicitud_vendedor',
+        'id', 'nombre', 'email', 'rol', 'activo', 'createdAt', 'solicitud_vendedor',
         // Datos del formulario de alta, para poder evaluar la solicitud.
         'nombre_local', 'telefono', 'direccion', 'categoria_local',
         'descripcion_productos', 'solicitud_fecha'
@@ -81,21 +81,36 @@ router.put('/usuarios/:id/rechazar-vendedor', async (req, res) => {
   }
 });
 
-router.delete('/usuarios/:id', async (req, res) => {
+/**
+ * Las cuentas se desactivan en lugar de borrarse. Borrar un usuario eliminaba
+ * en cascada sus pedidos, y con ellos cambiaban las liquidaciones ya
+ * calculadas de los locales. Una cuenta desactivada no puede iniciar sesión
+ * ni vender, pero su historial queda intacto y se puede reactivar.
+ */
+const cambiarActivacion = (activo) => async (req, res) => {
   try {
     const usuario = await Usuario.findByPk(req.params.id);
     if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
 
-    if (usuario.id === req.usuario.id) {
-      return res.status(400).json({ mensaje: 'No podés eliminar tu propia cuenta de administrador.' });
+    if (!activo && usuario.id === req.usuario.id) {
+      return res.status(400).json({ mensaje: 'No podés desactivar tu propia cuenta de administrador.' });
     }
 
-    await usuario.destroy();
-    res.json({ mensaje: 'Usuario eliminado exitosamente.' });
+    await usuario.update({ activo });
+    res.json({
+      mensaje: activo ? 'Cuenta reactivada.' : 'Cuenta desactivada: sus pedidos y ventas se conservan.',
+      usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, activo }
+    });
   } catch (err) {
-    responderError(res, err, { contexto: 'Error al eliminar el usuario', mensaje: 'Error interno al eliminar el usuario.' });
+    responderError(res, err, {
+      contexto: activo ? 'Error al reactivar el usuario' : 'Error al desactivar el usuario',
+      mensaje: 'Error interno al cambiar el estado de la cuenta.'
+    });
   }
-});
+};
+
+router.put('/usuarios/:id/desactivar', cambiarActivacion(false));
+router.put('/usuarios/:id/reactivar', cambiarActivacion(true));
 
 // ---------------------------------------------------------------------------
 // PLATOS
@@ -159,9 +174,13 @@ router.get('/estadisticas', async (req, res) => {
       pedidosTotales,
       ventasConcretadas
     ] = await Promise.all([
-      Usuario.count(),
-      Plato.count(),
-      Usuario.count({ where: { rol: ROLES.VENDEDOR } }),
+      // Las cuentas desactivadas no cuentan como usuarios ni como locales, y
+      // un plato solo está publicado si su local puede vender.
+      Usuario.count({ where: { activo: true } }),
+      Plato.count({
+        include: [{ model: Usuario.scope('habilitadoParaVender'), as: 'vendedor', attributes: [], required: true }]
+      }),
+      Usuario.count({ where: { rol: ROLES.VENDEDOR, activo: true } }),
       Pedido.count({ where: { estado: 'Enviado' } }),
       Pedido.count(),
       // Solo factura lo despachado: los pedidos pendientes o rechazados
@@ -189,7 +208,8 @@ router.get('/estadisticas', async (req, res) => {
 // ---------------------------------------------------------------------------
 // LIQUIDACIÓN DE COMISIONES POR LOCAL
 // Suma lo vendido por cada local (solo líneas despachadas) y calcula la
-// comisión que la plataforma le cobra sobre esas ventas.
+// comisión que la plataforma le cobra sobre esas ventas. Los locales
+// desactivados siguen apareciendo: sus ventas pasadas existieron.
 // ---------------------------------------------------------------------------
 router.get('/comisiones-vendedores', async (req, res) => {
   try {

@@ -37,6 +37,10 @@ module.exports = (sequelize, DataTypes) => {
     },
     solicitud_vendedor: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 
+    // Las cuentas se desactivan en lugar de borrarse: una cuenta inactiva no
+    // puede iniciar sesión ni vender, pero sus pedidos y ventas se conservan.
+    activo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+
     // Datos del formulario "Quiero ser Vendedor". Antes se descartaban:
     // ahora quedan guardados para que el admin evalúe la solicitud.
     nombre_local: DataTypes.STRING,
@@ -48,7 +52,15 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Usuario',
-    tableName: 'Usuarios'
+    tableName: 'Usuarios',
+    scopes: {
+      // Dueños cuyos platos se pueden ver y comprar: cuentas activas con rol de
+      // vendedor o de administrador. Si un local se desactiva o pierde el rol,
+      // sus platos salen del catálogo sin borrarse.
+      habilitadoParaVender: {
+        where: { activo: true, rol: [ROLES.VENDEDOR, ROLES.ADMIN] }
+      }
+    }
   });
 
   return Usuario;

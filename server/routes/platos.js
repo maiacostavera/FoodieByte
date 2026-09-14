@@ -150,7 +150,14 @@ router.get('/', async (req, res) => {
 
     const platos = await Plato.findAll({
       where,
-      include: [{ model: Usuario, as: 'vendedor', attributes: ['id', 'nombre', 'nombre_local'] }],
+      include: [{
+        // Solo se publican los platos de locales habilitados: si el local se
+        // desactiva o pierde el rol de vendedor, sus platos salen del catálogo.
+        model: Usuario.scope('habilitadoParaVender'),
+        as: 'vendedor',
+        attributes: ['id', 'nombre', 'nombre_local'],
+        required: true
+      }],
       order: [['createdAt', 'DESC']]
     });
 

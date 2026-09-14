@@ -768,13 +768,104 @@ async function ejecutar() {
     assert.strictEqual(conTokenNuevo.estado, 200);
   });
 
-  await prueba('Un usuario eliminado ya no puede usar su token', async () => {
-    const eliminado = await crearUsuario('ClienteEliminado', 'foodie');
-    const baja = await pedir('DELETE', `/api/admin/usuarios/${eliminado.usuario.id}`, { token: admin.token });
+  await prueba('Un usuario borrado de la base ya no puede usar su token', async () => {
+    const borrado = await crearUsuario('ClienteBorrado', 'foodie');
+    await Usuario.destroy({ where: { id: borrado.usuario.id } });
+
+    const { estado } = await pedir('GET', '/api/pedidos/mis-pedidos', { token: borrado.token });
+    assert.strictEqual(estado, 401);
+  });
+
+  // -------------------------------------------------------------------------
+  seccion('CUENTAS DESACTIVADAS (el historial se conserva)');
+
+  await prueba('Un usuario desactivado pierde el acceso con su token y no puede volver a entrar', async () => {
+    const cliente = await crearUsuario('ClienteDesactivado', 'foodie');
+    const baja = await pedir('PUT', `/api/admin/usuarios/${cliente.usuario.id}/desactivar`, { token: admin.token });
     assert.strictEqual(baja.estado, 200);
 
-    const { estado } = await pedir('GET', '/api/pedidos/mis-pedidos', { token: eliminado.token });
-    assert.strictEqual(estado, 401);
+    const conToken = await pedir('GET', '/api/pedidos/mis-pedidos', { token: cliente.token });
+    assert.strictEqual(conToken.estado, 401);
+
+    const login = await pedir('POST', '/api/usuarios/login', { body: { email: cliente.email, password: PASSWORD } });
+    assert.strictEqual(login.estado, 403);
+  });
+
+  await prueba('Una contraseña incorrecta no revela que la cuenta está desactivada', async () => {
+    const cliente = await crearUsuario('ClienteInactivo', 'foodie');
+    await pedir('PUT', `/api/admin/usuarios/${cliente.usuario.id}/desactivar`, { token: admin.token });
+
+    const login = await pedir('POST', '/api/usuarios/login', { body: { email: cliente.email, password: 'incorrecta' } });
+    assert.strictEqual(login.estado, 401);
+  });
+
+  await prueba('Desactivar un local conserva sus pedidos y su liquidación', async () => {
+    const local = await crearUsuario('LocalHistorico', 'vendedor');
+    const plato = await crearPlato(local.usuario.id, 'Plato Histórico', 1500, 10);
+    const pedido = await comprar(cliente2, plato, 2);
+    await pedir('PUT', `/api/pedidos/${pedido.id}/estado`, { token: local.token, body: { nuevoEstado: 'Enviado' } });
+
+    const antes = await pedir('GET', '/api/admin/comisiones-vendedores', { token: admin.token });
+    const filaAntes = antes.datos.find(f => f.id === local.usuario.id);
+    assert.ok(filaAntes, 'El local no figuraba en la liquidación antes de desactivarlo');
+
+    const baja = await pedir('PUT', `/api/admin/usuarios/${local.usuario.id}/desactivar`, { token: admin.token });
+    assert.strictEqual(baja.estado, 200);
+
+    const despues = await pedir('GET', '/api/admin/comisiones-vendedores', { token: admin.token });
+    const filaDespues = despues.datos.find(f => f.id === local.usuario.id);
+    assert.deepStrictEqual(filaDespues, filaAntes, 'La liquidación cambió al desactivar el local');
+    assert.ok(await Pedido.findByPk(pedido.id), 'Se perdió el pedido del local desactivado');
+  });
+
+  await prueba('Los platos de un local desactivado salen del catálogo y vuelven al reactivarlo', async () => {
+    const local = await crearUsuario('LocalCerrado', 'vendedor');
+    const plato = await crearPlato(local.usuario.id, 'Plato Local Cerrado', 700, 10);
+    const buscar = () => pedir('GET', `/api/platos?busqueda=${encodeURIComponent(plato.nombre)}`);
+
+    assert.strictEqual((await buscar()).datos.length, 1, 'El plato no aparecía antes de desactivar el local');
+
+    await pedir('PUT', `/api/admin/usuarios/${local.usuario.id}/desactivar`, { token: admin.token });
+    assert.strictEqual((await buscar()).datos.length, 0, 'El plato siguió en el catálogo');
+
+    const compra = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token,
+      body: { productos: [{ id: plato.id, cantidad: 1 }] }
+    });
+    assert.strictEqual(compra.estado, 404, 'Se pudo comprar un plato de un local desactivado');
+
+    await pedir('PUT', `/api/admin/usuarios/${local.usuario.id}/reactivar`, { token: admin.token });
+    assert.strictEqual((await buscar()).datos.length, 1, 'El plato no volvió al catálogo al reactivar el local');
+  });
+
+  await prueba('Los platos de un vendedor que pierde el rol salen del catálogo', async () => {
+    const local = await crearUsuario('LocalSinRol', 'vendedor');
+    const plato = await crearPlato(local.usuario.id, 'Plato Local Sin Rol', 650, 10);
+    await pedir('PUT', `/api/admin/usuarios/${local.usuario.id}/rol`, { token: admin.token, body: { nuevoRol: 'foodie' } });
+
+    const { datos } = await pedir('GET', `/api/platos?busqueda=${encodeURIComponent(plato.nombre)}`);
+    assert.strictEqual(datos.length, 0);
+  });
+
+  await prueba('Los KPIs no cuentan las cuentas desactivadas', async () => {
+    const local = await crearUsuario('LocalKpi', 'vendedor');
+    const antes = await pedir('GET', '/api/admin/estadisticas', { token: admin.token });
+    await pedir('PUT', `/api/admin/usuarios/${local.usuario.id}/desactivar`, { token: admin.token });
+    const despues = await pedir('GET', '/api/admin/estadisticas', { token: admin.token });
+
+    assert.strictEqual(despues.datos.localesActivos, antes.datos.localesActivos - 1);
+    assert.strictEqual(despues.datos.usuariosTotales, antes.datos.usuariosTotales - 1);
+  });
+
+  await prueba('El admin no puede desactivar su propia cuenta', async () => {
+    const { estado } = await pedir('PUT', `/api/admin/usuarios/${admin.usuario.id}/desactivar`, { token: admin.token });
+    assert.strictEqual(estado, 400);
+  });
+
+  await prueba('Los usuarios ya no se pueden borrar desde la API', async () => {
+    const { estado } = await pedir('DELETE', `/api/admin/usuarios/${cliente1.usuario.id}`, { token: admin.token });
+    assert.strictEqual(estado, 404);
+    assert.ok(await Usuario.findByPk(cliente1.usuario.id), 'El usuario se borró');
   });
 
   // -------------------------------------------------------------------------

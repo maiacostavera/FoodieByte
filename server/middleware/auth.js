@@ -38,9 +38,9 @@ const autenticar = async (req, res, next) => {
   }
 
   try {
-    const usuario = await Usuario.findByPk(Number(decoded.id), { attributes: ['id', 'rol'] });
+    const usuario = await Usuario.findByPk(Number(decoded.id), { attributes: ['id', 'rol', 'activo'] });
 
-    if (!usuario) {
+    if (!usuario || !usuario.activo) {
       return res.status(401).json({ mensaje: 'Tu cuenta ya no está disponible. Iniciá sesión nuevamente.', expirado: true });
     }
     // Sin esta comprobación, un vendedor al que el administrador le quitaba el
