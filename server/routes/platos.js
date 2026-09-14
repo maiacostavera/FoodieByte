@@ -2,7 +2,6 @@
 
 const express = require('express');
 const router = express.Router();
-const path = require('path');
 const multer = require('multer');
 const { Op } = require('sequelize');
 const { Plato, Usuario, Pregunta } = require('../models');
@@ -12,6 +11,7 @@ const { ROLES } = require('../config/seguridad');
 const { CATEGORIAS } = require('../config/categorias');
 const { LIMITES } = require('../config/limites');
 const { responderError } = require('../utils/errores');
+const { CARPETA_PLATOS, esImagenValida, borrarArchivo } = require('../utils/imagenes');
 
 // Los ids de la URL se validan antes de consultar la base.
 router.param('id', validarIdDeRuta);
@@ -26,7 +26,7 @@ const MIMES_PERMITIDOS = {
 
 const storage = multer.diskStorage({
   // Ruta absoluta: si no, depende del directorio desde el que se arrancó node.
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '..', 'uploads', 'platos')),
+  destination: (req, file, cb) => cb(null, CARPETA_PLATOS),
   filename: (req, file, cb) => {
     const sufijo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     cb(null, `imagen-${sufijo}${MIMES_PERMITIDOS[file.mimetype] || '.jpg'}`);
@@ -55,6 +55,8 @@ const manejarErrorDeCarga = (err, res) => {
   }
   return null;
 };
+
+const IMAGEN_INVALIDA = { mensaje: 'El archivo no es una imagen .jpg, .png o .webp válida.' };
 
 /** Valida y normaliza los campos que llegan desde el formulario del vendedor. */
 const validarDatosDePlato = (body, { exigirTodos }) => {
@@ -194,9 +196,21 @@ router.post('/', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), (req, res
       return res.status(500).json({ mensaje: 'Error al subir la imagen.' });
     }
 
+    // Multer ya guardó la imagen en disco antes de validar el resto: si el
+    // alta no prospera, se borra para no dejar un archivo huérfano.
+    const descartarImagen = () => borrarArchivo(req.file?.path);
+
     try {
+      if (req.file && !(await esImagenValida(req.file.path))) {
+        await descartarImagen();
+        return res.status(400).json(IMAGEN_INVALIDA);
+      }
+
       const { datos, errores } = validarDatosDePlato(req.body, { exigirTodos: true });
-      if (errores.length > 0) return res.status(400).json({ mensaje: errores[0], errores });
+      if (errores.length > 0) {
+        await descartarImagen();
+        return res.status(400).json({ mensaje: errores[0], errores });
+      }
 
       // El dueño sale siempre del token. Un vendedor no puede publicar
       // a nombre de otro local aunque mande vendedorId en el body.
@@ -212,6 +226,7 @@ router.post('/', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), (req, res
 
       res.status(201).json({ mensaje: 'Plato creado con éxito.', plato: nuevoPlato });
     } catch (err) {
+      await descartarImagen();
       responderError(res, err, { contexto: 'Error al crear el plato', mensaje: 'Error interno al procesar el alta.' });
     }
   });
@@ -226,22 +241,39 @@ router.put('/:id', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), (req, r
       return res.status(500).json({ mensaje: 'Error al subir la imagen.' });
     }
 
+    // Si la edición no prospera, la imagen nueva se borra. Si prospera, el
+    // modelo Plato borra la anterior.
+    const descartarImagen = () => borrarArchivo(req.file?.path);
+
     try {
       const plato = await Plato.findByPk(req.params.id);
-      if (!plato) return res.status(404).json({ mensaje: 'Plato no encontrado.' });
+      if (!plato) {
+        await descartarImagen();
+        return res.status(404).json({ mensaje: 'Plato no encontrado.' });
+      }
 
       if (req.usuario.rol !== ROLES.ADMIN && plato.vendedorId !== req.usuario.id) {
+        await descartarImagen();
         return res.status(403).json({ mensaje: 'No tenés permisos sobre este producto.' });
       }
 
+      if (req.file && !(await esImagenValida(req.file.path))) {
+        await descartarImagen();
+        return res.status(400).json(IMAGEN_INVALIDA);
+      }
+
       const { datos, errores } = validarDatosDePlato(req.body, { exigirTodos: false });
-      if (errores.length > 0) return res.status(400).json({ mensaje: errores[0], errores });
+      if (errores.length > 0) {
+        await descartarImagen();
+        return res.status(400).json({ mensaje: errores[0], errores });
+      }
 
       if (req.file) datos.imagenUrl = `/uploads/platos/${req.file.filename}`;
 
       await plato.update(datos);
       res.json({ mensaje: 'Plato actualizado.', plato });
     } catch (err) {
+      await descartarImagen();
       responderError(res, err, { contexto: 'Error al actualizar el plato', mensaje: 'Error interno al actualizar el plato.' });
     }
   });
@@ -269,7 +301,7 @@ router.put('/:id/stock', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), a
   }
 });
 
-// ELIMINAR PLATO
+// ELIMINAR PLATO (el modelo borra también su imagen del disco)
 router.delete('/:id', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), async (req, res) => {
   try {
     const plato = await Plato.findByPk(req.params.id);
