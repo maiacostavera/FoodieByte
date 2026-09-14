@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api, { mensajeDeError } from '../../api/client';
+import { LIMITES } from '../../utils/limites';
 import { estilos } from './estilos';
 
 const FORMULARIO_VACIO = {
@@ -39,8 +40,8 @@ function FormularioPlato({ plato, categorias, alCerrar, alGuardar, mostrarAviso 
 
         if (!datos.nombre.trim()) return setError('El nombre es obligatorio.');
         if (Number(datos.precio) <= 0) return setError('El precio debe ser mayor a 0.');
-        if (Number(datos.stock) < 0 || Number(datos.stock) > 100) {
-            return setError('El stock debe estar entre 0 y 100.');
+        if (Number(datos.stock) < 0 || Number(datos.stock) > LIMITES.stock) {
+            return setError(`El stock debe estar entre 0 y ${LIMITES.stock}.`);
         }
 
         const fd = new FormData();
@@ -78,18 +79,18 @@ function FormularioPlato({ plato, categorias, alCerrar, alGuardar, mostrarAviso 
                 <form onSubmit={manejarSubmit} style={estilos.formulario} noValidate>
                     <div style={estilos.grupoInput}>
                         <label htmlFor="plato-nombre" style={estilos.label}>Nombre del Plato</label>
-                        <input id="plato-nombre" type="text" value={datos.nombre}
+                        <input id="plato-nombre" type="text" value={datos.nombre} maxLength={LIMITES.nombre}
                             onChange={e => actualizar('nombre', e.target.value)} style={estilos.input} />
                     </div>
 
                     <div style={estilos.grupoInput}>
                         <label htmlFor="plato-descripcion" style={estilos.label}>Descripción</label>
-                        <textarea id="plato-descripcion" value={datos.descripcion}
+                        <textarea id="plato-descripcion" value={datos.descripcion} maxLength={LIMITES.descripcion}
                             onChange={e => actualizar('descripcion', e.target.value)}
                             style={{ ...estilos.input, minHeight: '80px', resize: 'vertical' }} />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div style={estiloGrillaDoble}>
                         <div style={estilos.grupoInput}>
                             <label htmlFor="plato-precio" style={estilos.label}>Precio ($)</label>
                             <input id="plato-precio" type="number" min="1" step="0.01" value={datos.precio}
@@ -97,12 +98,12 @@ function FormularioPlato({ plato, categorias, alCerrar, alGuardar, mostrarAviso 
                         </div>
                         <div style={estilos.grupoInput}>
                             <label htmlFor="plato-stock" style={estilos.label}>Stock</label>
-                            <input id="plato-stock" type="number" min="0" max="100" value={datos.stock}
+                            <input id="plato-stock" type="number" min="0" max={LIMITES.stock} value={datos.stock}
                                 onChange={e => actualizar('stock', e.target.value)} style={estilos.input} />
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div style={estiloGrillaDoble}>
                         <div style={estilos.grupoInput}>
                             <label htmlFor="plato-categoria" style={estilos.label}>Categoría</label>
                             <select id="plato-categoria" value={datos.categoria}
@@ -112,7 +113,7 @@ function FormularioPlato({ plato, categorias, alCerrar, alGuardar, mostrarAviso 
                         </div>
                         <div style={estilos.grupoInput}>
                             <label htmlFor="plato-tiempo" style={estilos.label}>Tiempo de Prep.</label>
-                            <input id="plato-tiempo" type="text" value={datos.tiempo_prep}
+                            <input id="plato-tiempo" type="text" value={datos.tiempo_prep} maxLength={LIMITES.tiempoPrep}
                                 onChange={e => actualizar('tiempo_prep', e.target.value)} style={estilos.input} />
                         </div>
                     </div>
@@ -129,7 +130,7 @@ function FormularioPlato({ plato, categorias, alCerrar, alGuardar, mostrarAviso 
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '24px', marginTop: '10px' }}>
+                    <div style={{ display: 'flex', gap: '24px', marginTop: '10px', flexWrap: 'wrap' }}>
                         <label style={estilos.checkboxLabel}>
                             <input type="checkbox" checked={datos.es_vegano}
                                 onChange={e => actualizar('es_vegano', e.target.checked)} /> Opción Vegana
@@ -142,7 +143,7 @@ function FormularioPlato({ plato, categorias, alCerrar, alGuardar, mostrarAviso 
 
                     {error && <p role="alert" style={{ color: '#c62828', backgroundColor: '#ffebee', padding: '10px 14px', borderRadius: '4px', fontSize: '0.85rem', margin: 0 }}>{error}</p>}
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '8px', flexWrap: 'wrap' }}>
                         <button type="button" onClick={alCerrar} style={estilos.botonSecundario}>Cancelar</button>
                         <button type="submit" disabled={guardando}
                             style={{ ...estilos.botonPrimario, opacity: guardando ? 0.6 : 1 }}>
@@ -154,5 +155,8 @@ function FormularioPlato({ plato, categorias, alCerrar, alGuardar, mostrarAviso 
         </div>
     );
 }
+
+// Dos columnas en pantallas anchas y una sola en el celular.
+const estiloGrillaDoble = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px' };
 
 export default FormularioPlato;
