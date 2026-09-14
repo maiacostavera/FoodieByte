@@ -6,12 +6,19 @@ const path = require('path');
 const rutaEnv = path.join(__dirname, '..', '.env');
 const existeEnv = fs.existsSync(rutaEnv);
 
-require('dotenv').config({ quiet: true });
+// Ruta explícita: así el .env se encuentra aunque node se arranque desde
+// otra carpeta que no sea server/.
+require('dotenv').config({ path: rutaEnv, quiet: true });
 
-// Sin estas comprobaciones, un .env ausente o a medio completar produce el
-// mismo error de autenticación que una contraseña equivocada, y no hay forma
-// de distinguirlos desde la salida de sequelize-cli.
-if (!existeEnv) {
+// La configuración puede venir del archivo .env (desarrollo local) o de
+// variables de entorno ya definidas (CI, servidores en la nube), donde no hay
+// archivo. Solo se corta si no hay ninguna de las dos: sin este aviso, un .env
+// ausente produce el mismo error de autenticación que una contraseña
+// equivocada, y no hay forma de distinguirlos desde la salida de sequelize-cli.
+const hayVariablesDeBase = ['DB_HOST', 'DB_NAME', 'DB_NAME_TEST', 'DB_USER']
+  .some(variable => process.env[variable] !== undefined);
+
+if (!existeEnv && !hayVariablesDeBase) {
   console.error('\n❌ No se encontró el archivo .env en la carpeta server/.');
   console.error(`   Se buscó en: ${rutaEnv}`);
   console.error('\n   Crealo copiando la plantilla y completá tus datos:');
@@ -41,7 +48,7 @@ if (contienePlaceholder(process.env.JWT_SECRET)) {
 }
 
 // Configuración compartida por la app (models/index.js) y por sequelize-cli.
-// Todos los valores sensibles salen del archivo .env (ver .env.example).
+// Todos los valores sensibles salen del entorno (ver .env.example).
 const base = {
   username: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || null,
@@ -61,6 +68,8 @@ module.exports = {
     database: process.env.DB_NAME || 'foodiebyte_db',
     logging: console.log
   },
+  // La usan npm test y el CI: una base aparte para que las pruebas nunca
+  // escriban sobre los datos de desarrollo.
   test: {
     ...base,
     database: process.env.DB_NAME_TEST || 'foodiebyte_test',
