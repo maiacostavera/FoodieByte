@@ -26,7 +26,8 @@ api.interceptors.response.use(
         // Un 401 con token guardado significa sesión vencida o revocada:
         // antes esto fallaba en silencio y el usuario seguía "logueado".
         if (error.response?.status === 401 && localStorage.getItem('token')) {
-            if (alExpirarSesion) alExpirarSesion();
+            // El servidor explica el motivo: sesión vencida, cuenta eliminada o permisos cambiados.
+            if (alExpirarSesion) alExpirarSesion(error.response.data?.mensaje);
         }
         return Promise.reject(error);
     }
