@@ -3,15 +3,20 @@
 /**
  * Pruebas de integración de la API de FoodieByte.
  *
- * Levanta el servidor real contra la base de datos configurada en el .env y
- * verifica los puntos críticos del sistema: autenticación, aislamiento entre
- * locales (multitenencia), control de stock con transacciones y el cálculo
- * de comisiones del administrador.
+ * Levanta la aplicación real (app.js) contra la base de pruebas y verifica
+ * los puntos críticos del sistema: autenticación, aislamiento entre locales
+ * (multitenencia), control de stock con transacciones y el cálculo de
+ * comisiones del administrador.
  *
- * Uso:  npm test     (requiere la base migrada: npm run db:setup)
+ * Uso:  npm test
  *
- * ⚠️  Las pruebas crean y borran sus propios datos. Usá una base de desarrollo.
+ * Corre siempre sobre la base DB_NAME_TEST (por defecto foodiebyte_test),
+ * nunca sobre la de desarrollo. La primera vez hay que crearla con
+ * npm run db:test:create; las migraciones las aplica pretest antes de cada corrida.
  */
+
+// Tiene que definirse antes de cargar los modelos: selecciona config.test.
+process.env.NODE_ENV = 'test';
 
 require('dotenv').config({ quiet: true });
 
@@ -108,24 +113,22 @@ const limpiar = async () => {
 // --- suite ------------------------------------------------------------------
 
 async function ejecutar() {
-  process.env.PORT = String(PUERTO);
-
-  // Levantamos la app tal como se sirve en producción.
-  const express = require('express');
-  const cors = require('cors');
-  const servidorApp = express();
-  servidorApp.use(cors());
-  servidorApp.use(express.json());
-  servidorApp.use('/api/platos', require('../routes/platos'));
-  servidorApp.use('/api/usuarios', require('../routes/usuarios'));
-  servidorApp.use('/api/pedidos', require('../routes/pedidos'));
-  servidorApp.use('/api/admin', require('../routes/admin'));
-
   await sequelize.authenticate();
-  servidor = servidorApp.listen(PUERTO);
+
+  // Salvaguarda: si por algún motivo se cargó otra configuración, se corta
+  // antes de crear un solo dato.
+  const baseDePruebas = process.env.DB_NAME_TEST || 'foodiebyte_test';
+  if (sequelize.config.database !== baseDePruebas) {
+    throw new Error(`Las pruebas iban a correr sobre "${sequelize.config.database}" en lugar de "${baseDePruebas}".`);
+  }
+
+  // Es la misma aplicación que arranca index.js, con CORS y manejo de
+  // errores incluidos: solo cambia el puerto.
+  const app = require('../app');
+  servidor = app.listen(PUERTO);
   await new Promise(resolve => servidor.once('listening', resolve));
 
-  console.log(`\nFoodieByte · pruebas de integración (${BASE})`);
+  console.log(`\nFoodieByte · pruebas de integración (${BASE}, base "${sequelize.config.database}")`);
 
   // Actores de la prueba: dos locales que compiten y dos clientes distintos.
   const local1 = await crearUsuario('LocalUno', 'vendedor');
@@ -623,6 +626,31 @@ async function ejecutar() {
     const creado = await Usuario.findOne({ where: { email } });
     if (creado) creados.usuarios.push(creado.id);
     assert.deepStrictEqual(respuestas.map(r => r.estado).sort(), [201, 409]);
+  });
+
+  // -------------------------------------------------------------------------
+  seccion('APLICACIÓN (app.js)');
+
+  await prueba('Una ruta inexistente responde 404 en JSON', async () => {
+    const { estado, datos } = await pedir('GET', '/api/no-existe');
+    assert.strictEqual(estado, 404);
+    assert.ok(datos && datos.mensaje, 'La respuesta 404 no trae un mensaje JSON');
+  });
+
+  await prueba('Un cuerpo que no es JSON válido responde 400 y no 500', async () => {
+    const respuesta = await fetch(`${BASE}/api/usuarios/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"email": "sin cerrar"'
+    });
+    assert.strictEqual(respuesta.status, 400);
+  });
+
+  await prueba('Un origen no habilitado por CORS responde 403', async () => {
+    const respuesta = await fetch(`${BASE}/api/platos/categorias`, {
+      headers: { Origin: 'https://sitio-ajeno.example' }
+    });
+    assert.strictEqual(respuesta.status, 403);
   });
 }
 

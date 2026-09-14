@@ -11,8 +11,13 @@
     "db:seed": "sequelize db:seed:all",
     "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
     "db:reset": "sequelize db:drop && npm run db:setup",
+    "db:test:create": "sequelize db:create --env test",
+    "pretest": "sequelize db:migrate --env test",
     "test": "node pruebas/pruebas-api.js",
     "migrar:mysql": "node scripts/migrar-mysql-a-postgres.js"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   },
   "keywords": [],
   "author": "",
