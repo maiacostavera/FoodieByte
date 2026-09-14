@@ -1,5 +1,6 @@
 'use strict';
 const { Model } = require('sequelize');
+const { LIMITES } = require('../config/limites');
 
 module.exports = (sequelize, DataTypes) => {
   class Plato extends Model {
@@ -34,7 +35,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1,
-      validate: { min: 0, max: 100 }
+      validate: { min: 0, max: LIMITES.stock }
     },
     vendedorId: { type: DataTypes.INTEGER, allowNull: false },
     tiempo_prep: { type: DataTypes.STRING, defaultValue: '20-30 min' },

@@ -7,13 +7,26 @@ const { Pedido, PedidoItem, Plato, Usuario, sequelize } = require('../models');
 const { autenticar, requiereRol } = require('../middleware/auth');
 const { validarIdDeRuta } = require('../middleware/validarId');
 const { ROLES } = require('../config/seguridad');
-const { MAX_INTEGER } = require('../config/limites');
+const { LIMITES, MAX_INTEGER } = require('../config/limites');
 const { responderError } = require('../utils/errores');
 
-const ESTADOS = Pedido.ESTADOS;
+// Una línea pendiente solo puede pasar a uno de estos estados, y ahí queda:
+// ni Enviado ni Rechazado se pueden revertir.
+const ESTADOS_FINALES = ['Enviado', 'Rechazado'];
 
 // Los ids de la URL se validan antes de consultar la base.
 router.param('id', validarIdDeRuta);
+
+/**
+ * Error de negocio lanzado dentro de una transacción: la revierte y se
+ * responde con su código, sin pasar por el manejo de errores inesperados.
+ */
+class ErrorDeNegocio extends Error {
+  constructor(estado, mensaje) {
+    super(mensaje);
+    this.estado = estado;
+  }
+}
 
 const incluirDetalle = [
   {
@@ -40,6 +53,29 @@ const sincronizarEstadoDelPedido = async (pedidoId, transaction = null) => {
   const estado = calcularEstadoDelPedido(items);
   await Pedido.update({ estado }, { where: { id: pedidoId }, transaction });
   return estado;
+};
+
+/**
+ * Devuelve al stock las unidades de las líneas rechazadas. Si el plato ya no
+ * existe (platoId en NULL) no hay adónde devolverlas. El stock nunca supera
+ * el máximo: si el local lo recargó a mano mientras tanto, se respeta el tope.
+ */
+const reponerStock = async (lineas, transaction) => {
+  const unidadesPorPlato = new Map();
+  for (const linea of lineas) {
+    if (linea.platoId === null) continue;
+    unidadesPorPlato.set(linea.platoId, (unidadesPorPlato.get(linea.platoId) || 0) + linea.cantidad);
+  }
+
+  // Mismo orden de bloqueo que al crear un pedido (ids ascendentes), para que
+  // un rechazo y una compra simultáneos no se interbloqueen.
+  const ids = [...unidadesPorPlato.keys()].sort((a, b) => a - b);
+  for (const platoId of ids) {
+    const plato = await Plato.findByPk(platoId, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!plato) continue;
+    const stock = Math.min(plato.stock + unidadesPorPlato.get(platoId), LIMITES.stock);
+    await plato.update({ stock }, { transaction });
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -73,62 +109,66 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
   // mismo orden y no se produce un interbloqueo (deadlock) entre ellas.
   const idsOrdenados = [...consolidados.keys()].sort((a, b) => a - b);
 
-  const t = await sequelize.transaction();
   try {
-    let totalCalculado = 0;
-    const lineas = [];
+    // Transacción administrada: Sequelize confirma si la función termina y
+    // revierte si lanza. Antes el rollback se llamaba a mano en el catch, y si
+    // algo fallaba después del commit intentaba revertir una transacción ya
+    // cerrada: el cliente veía un error aunque el pedido se había guardado.
+    const pedido = await sequelize.transaction(async (t) => {
+      let totalCalculado = 0;
+      const lineas = [];
 
-    for (const platoId of idsOrdenados) {
-      const cantidad = consolidados.get(platoId);
+      for (const platoId of idsOrdenados) {
+        const cantidad = consolidados.get(platoId);
 
-      const plato = await Plato.findByPk(platoId, { transaction: t, lock: t.LOCK.UPDATE });
-      if (!plato) {
-        await t.rollback();
-        return res.status(404).json({ mensaje: `El plato con id ${platoId} ya no está disponible.` });
-      }
-      if (plato.stock < cantidad) {
-        await t.rollback();
-        return res.status(409).json({
-          mensaje: `Stock insuficiente de "${plato.nombre}". Quedan ${plato.stock} unidades.`
+        const plato = await Plato.findByPk(platoId, { transaction: t, lock: t.LOCK.UPDATE });
+        if (!plato) {
+          throw new ErrorDeNegocio(404, `El plato con id ${platoId} ya no está disponible.`);
+        }
+        if (plato.stock < cantidad) {
+          throw new ErrorDeNegocio(409, `Stock insuficiente de "${plato.nombre}". Quedan ${plato.stock} unidades.`);
+        }
+
+        await plato.decrement('stock', { by: cantidad, transaction: t });
+
+        // El precio sale siempre de la base, nunca del carrito del navegador:
+        // así el cliente no puede manipular el importe que se cobra.
+        const precioUnitario = Number(plato.precio);
+        const subtotal = precioUnitario * cantidad;
+        totalCalculado += subtotal;
+
+        lineas.push({
+          platoId: plato.id,
+          vendedorId: plato.vendedorId,
+          nombrePlato: plato.nombre,
+          precioUnitario,
+          cantidad,
+          subtotal,
+          estado: 'Pendiente'
         });
       }
 
-      await plato.decrement('stock', { by: cantidad, transaction: t });
-
-      // El precio sale siempre de la base, nunca del carrito del navegador:
-      // así el cliente no puede manipular el importe que se cobra.
-      const precioUnitario = Number(plato.precio);
-      const subtotal = precioUnitario * cantidad;
-      totalCalculado += subtotal;
-
-      lineas.push({
-        platoId: plato.id,
-        vendedorId: plato.vendedorId,
-        nombrePlato: plato.nombre,
-        precioUnitario,
-        cantidad,
-        subtotal,
+      const nuevoPedido = await Pedido.create({
+        usuarioId: req.usuario.id,
+        total: Number(totalCalculado.toFixed(2)),
         estado: 'Pendiente'
-      });
-    }
+      }, { transaction: t });
 
-    const nuevoPedido = await Pedido.create({
-      usuarioId: req.usuario.id,
-      total: Number(totalCalculado.toFixed(2)),
-      estado: 'Pendiente'
-    }, { transaction: t });
+      const items = await PedidoItem.bulkCreate(
+        lineas.map(linea => ({ ...linea, pedidoId: nuevoPedido.id })),
+        { transaction: t }
+      );
 
-    await PedidoItem.bulkCreate(
-      lineas.map(linea => ({ ...linea, pedidoId: nuevoPedido.id })),
-      { transaction: t }
-    );
+      // La respuesta se arma con lo que ya se guardó: no hace falta volver a
+      // consultar la base después de confirmar.
+      return { ...nuevoPedido.toJSON(), items: items.map(item => item.toJSON()) };
+    });
 
-    await t.commit();
-
-    const pedido = await Pedido.findByPk(nuevoPedido.id, { include: incluirDetalle });
     res.status(201).json({ mensaje: '¡Pedido confirmado con éxito! 🛍️', pedido });
   } catch (err) {
-    await t.rollback();
+    if (err instanceof ErrorDeNegocio) {
+      return res.status(err.estado).json({ mensaje: err.message });
+    }
     responderError(res, err, {
       contexto: 'Error al procesar la transacción del pedido',
       mensaje: 'Error interno al procesar el pedido.'
@@ -194,48 +234,62 @@ router.get('/comandas', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), as
 });
 
 // ---------------------------------------------------------------------------
-// CAMBIAR EL ESTADO DE LAS LÍNEAS PROPIAS DE UN PEDIDO
+// DESPACHAR O RECHAZAR LAS LÍNEAS PROPIAS DE UN PEDIDO
+// Una línea solo pasa de Pendiente a Enviado o a Rechazado, y ese estado es
+// final. Al rechazar, las unidades vuelven al stock del plato.
 // ---------------------------------------------------------------------------
 router.put('/:id/estado', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), async (req, res) => {
-  const t = await sequelize.transaction();
+  const { nuevoEstado } = req.body;
+  if (!ESTADOS_FINALES.includes(nuevoEstado)) {
+    return res.status(400).json({ mensaje: 'Estado inválido: un pedido pendiente solo puede pasar a Enviado o a Rechazado.' });
+  }
+
   try {
-    const { nuevoEstado } = req.body;
-    if (!ESTADOS.includes(nuevoEstado)) {
-      await t.rollback();
-      return res.status(400).json({ mensaje: 'Estado inválido.' });
-    }
+    const estadoPedido = await sequelize.transaction(async (t) => {
+      // Se bloquea el pedido antes de tocar sus líneas. Si dos locales de un
+      // mismo pedido despachan a la vez, el segundo espera al primero y lee
+      // las líneas ya actualizadas. Sin el bloqueo, los dos podían calcular el
+      // estado general sobre datos viejos y dejar el pedido en Pendiente con
+      // todas sus líneas enviadas.
+      const pedido = await Pedido.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!pedido) throw new ErrorDeNegocio(404, 'Pedido no encontrado.');
 
-    const pedido = await Pedido.findByPk(req.params.id, { transaction: t });
-    if (!pedido) {
-      await t.rollback();
-      return res.status(404).json({ mensaje: 'Pedido no encontrado.' });
-    }
+      const filtro = { pedidoId: pedido.id };
+      if (req.usuario.rol !== ROLES.ADMIN) filtro.vendedorId = req.usuario.id;
 
-    const esAdmin = req.usuario.rol === ROLES.ADMIN;
-    const filtro = { pedidoId: pedido.id };
-    if (!esAdmin) filtro.vendedorId = req.usuario.id;
+      const lineas = await PedidoItem.findAll({ where: filtro, transaction: t, lock: t.LOCK.UPDATE });
 
-    const [actualizadas] = await PedidoItem.update(
-      { estado: nuevoEstado },
-      { where: filtro, transaction: t }
-    );
+      // Sin líneas propias en este pedido, el vendedor no tiene nada que gestionar acá.
+      if (lineas.length === 0) {
+        throw new ErrorDeNegocio(403, 'Este pedido no incluye productos de tu local.');
+      }
 
-    // Sin líneas propias en este pedido, el vendedor no tiene nada que gestionar acá.
-    if (actualizadas === 0) {
-      await t.rollback();
-      return res.status(403).json({ mensaje: 'Este pedido no incluye productos de tu local.' });
-    }
+      const pendientes = lineas.filter(linea => linea.estado === 'Pendiente');
+      if (pendientes.length === 0) {
+        throw new ErrorDeNegocio(409, 'Este pedido ya no tiene productos pendientes: Enviado y Rechazado son estados finales.');
+      }
 
-    const estadoGeneral = await sincronizarEstadoDelPedido(pedido.id, t);
-    await t.commit();
+      await PedidoItem.update(
+        { estado: nuevoEstado },
+        { where: { id: pendientes.map(linea => linea.id) }, transaction: t }
+      );
+
+      if (nuevoEstado === 'Rechazado') {
+        await reponerStock(pendientes, t);
+      }
+
+      return sincronizarEstadoDelPedido(pedido.id, t);
+    });
 
     res.json({
       mensaje: 'Estado actualizado exitosamente.',
       estadoVendedor: nuevoEstado,
-      estadoPedido: estadoGeneral
+      estadoPedido
     });
   } catch (err) {
-    await t.rollback();
+    if (err instanceof ErrorDeNegocio) {
+      return res.status(err.estado).json({ mensaje: err.message });
+    }
     responderError(res, err, {
       contexto: 'Error al actualizar el estado del pedido',
       mensaje: 'Error interno al actualizar el estado.'

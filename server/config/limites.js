@@ -17,6 +17,8 @@ const LIMITES = {
   direccion: 200,
   descripcion: 1000,
   tiempoPrep: 50,
+  // Unidades máximas en stock de un plato: lo validan el modelo y las rutas.
+  stock: 100,
   // Máximo que entra en una columna DECIMAL(10, 2).
   precio: 99999999.99
 };
