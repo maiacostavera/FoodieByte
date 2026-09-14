@@ -81,9 +81,12 @@ function AdminPanel({ rol, categorias, onRefreshPlatos, onDatosActualizados }) {
     };
 
     const cambiarRolUsuario = async (id, nuevoRol) => {
+        // Cambiar el rol cierra la sesión del usuario y puede sacar sus platos del catálogo.
+        if (!window.confirm(`¿Cambiar el rol de este usuario a "${nuevoRol}"? Va a tener que volver a iniciar sesión.`)) return;
         try {
             await api.put(`/admin/usuarios/${id}/rol`, { nuevoRol });
             await cargarDatos();
+            if (onRefreshPlatos) onRefreshPlatos();
             mostrarAviso('Rol actualizado.', 'exito');
         } catch (err) {
             mostrarAviso(mensajeDeError(err, 'No se pudo cambiar el rol.'), 'error');
@@ -101,14 +104,19 @@ function AdminPanel({ rol, categorias, onRefreshPlatos, onDatosActualizados }) {
         }
     };
 
-    const eliminarUsuario = async (id) => {
-        if (!window.confirm('¿Confirmás la eliminación permanente de este usuario y de todos sus datos?')) return;
+    // Las cuentas no se borran: desactivarlas conserva sus pedidos y liquidaciones.
+    const cambiarActivacionUsuario = async (id, activar) => {
+        const confirmacion = activar
+            ? '¿Reactivar esta cuenta? Va a poder iniciar sesión de nuevo y, si es un local, sus platos vuelven al catálogo.'
+            : '¿Desactivar esta cuenta? No va a poder iniciar sesión y, si es un local, sus platos salen del catálogo. Sus pedidos y ventas se conservan.';
+        if (!window.confirm(confirmacion)) return;
         try {
-            await api.delete(`/admin/usuarios/${id}`);
+            await api.put(`/admin/usuarios/${id}/${activar ? 'reactivar' : 'desactivar'}`);
             await cargarDatos();
-            mostrarAviso('Usuario eliminado.', 'info');
+            if (onRefreshPlatos) onRefreshPlatos();
+            mostrarAviso(activar ? 'Cuenta reactivada.' : 'Cuenta desactivada.', 'info');
         } catch (err) {
-            mostrarAviso(mensajeDeError(err, 'No se pudo eliminar el usuario.'), 'error');
+            mostrarAviso(mensajeDeError(err, 'No se pudo cambiar el estado de la cuenta.'), 'error');
         }
     };
 
@@ -159,9 +167,9 @@ function AdminPanel({ rol, categorias, onRefreshPlatos, onDatosActualizados }) {
 
             {esAdmin && kpis && (
                 <div style={estilos.gridKPIs}>
-                    <KPI titulo="Usuarios Totales" valor={kpis.usuariosTotales} />
+                    <KPI titulo="Usuarios Activos" valor={kpis.usuariosTotales} />
                     <KPI titulo="Platos Publicados" valor={kpis.platosPublicados} />
-                    <KPI titulo="Locales en la Plataforma" valor={kpis.localesActivos} />
+                    <KPI titulo="Locales Activos" valor={kpis.localesActivos} />
                     <KPI titulo="Pedidos Enviados" valor={`${kpis.pedidosEnviados} / ${kpis.pedidosTotales}`} />
                     <KPI titulo="Volumen de Ventas" valor={formatearMoneda(kpis.volumenVentas)} />
                     <KPI
@@ -256,7 +264,7 @@ function AdminPanel({ rol, categorias, onRefreshPlatos, onDatosActualizados }) {
                     usuarios={usuarios}
                     alCambiarRol={cambiarRolUsuario}
                     alRechazarSolicitud={rechazarSolicitud}
-                    alEliminar={eliminarUsuario}
+                    alCambiarActivacion={cambiarActivacionUsuario}
                 />
             )}
 
