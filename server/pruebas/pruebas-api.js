@@ -869,6 +869,107 @@ async function ejecutar() {
   });
 
   // -------------------------------------------------------------------------
+  seccion('SEGURIDAD DE LA API');
+
+  // Utilidades de disco para comprobar que no quedan imágenes huérfanas.
+  const fs = require('fs');
+  const path = require('path');
+  const { CARPETA_PLATOS } = require('../utils/imagenes');
+  const archivosSubidos = () => fs.readdirSync(CARPETA_PLATOS).filter(nombre => !nombre.startsWith('.'));
+  const rutaEnDisco = (imagenUrl) => path.join(CARPETA_PLATOS, path.basename(imagenUrl));
+  const pngValido = {
+    contenido: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'),
+    tipo: 'image/png',
+    nombre: 'foto.png'
+  };
+
+  // Envía un plato como multipart/form-data, igual que el formulario del panel.
+  const enviarPlato = async (metodo, ruta, token, campos, archivo) => {
+    const formulario = new FormData();
+    for (const [clave, valor] of Object.entries(campos)) formulario.append(clave, String(valor));
+    if (archivo) formulario.append('imagen', new Blob([archivo.contenido], { type: archivo.tipo }), archivo.nombre);
+    const respuesta = await fetch(`${BASE}${ruta}`, {
+      method: metodo,
+      headers: { Authorization: `Bearer ${token}` },
+      body: formulario
+    });
+    return { estado: respuesta.status, datos: await respuesta.json() };
+  };
+
+  await prueba('Las respuestas incluyen encabezados de seguridad', async () => {
+    const respuesta = await fetch(`${BASE}/api/health`);
+    assert.strictEqual(respuesta.headers.get('x-content-type-options'), 'nosniff');
+    assert.ok(respuesta.headers.get('content-security-policy'), 'Falta Content-Security-Policy');
+    // Las imágenes de /uploads se piden desde el origen del frontend.
+    assert.strictEqual(respuesta.headers.get('cross-origin-resource-policy'), 'cross-origin');
+  });
+
+  await prueba('Muchos intentos fallidos de login para un mismo correo se frenan con 429', async () => {
+    const email = `fuerza-bruta-${SUFIJO}@pruebas.local`;
+    const estados = [];
+    for (let intento = 1; intento <= 11; intento++) {
+      const { estado } = await pedir('POST', '/api/usuarios/login', { body: { email, password: `intento-${intento}` } });
+      estados.push(estado);
+    }
+    assert.ok(estados.slice(0, 10).every(e => e === 401), `Los primeros diez intentos debían dar 401: ${estados.join(', ')}`);
+    assert.strictEqual(estados[10], 429);
+  });
+
+  await prueba('El bloqueo de un correo no impide entrar con otro', async () => {
+    const { estado } = await pedir('POST', '/api/usuarios/login', { body: { email: cliente2.email, password: PASSWORD } });
+    assert.strictEqual(estado, 200);
+  });
+
+  await prueba('Un archivo que no es imagen se rechaza aunque se declare PNG', async () => {
+    const antes = archivosSubidos().length;
+    const { estado } = await enviarPlato('POST', '/api/platos', local1.token,
+      { nombre: `Plato imagen falsa ${SUFIJO}`, precio: 100, stock: 1, categoria: 'Pizzas' },
+      { contenido: Buffer.from('<script>alert("hola")</script>'), tipo: 'image/png', nombre: 'falsa.png' });
+    assert.strictEqual(estado, 400);
+    assert.strictEqual(archivosSubidos().length, antes, 'El archivo falso quedó guardado en disco');
+  });
+
+  await prueba('Si el alta de un plato falla, la imagen subida no queda en disco', async () => {
+    const antes = archivosSubidos().length;
+    const { estado } = await enviarPlato('POST', '/api/platos', local1.token,
+      { nombre: `Plato precio inválido ${SUFIJO}`, precio: 0, stock: 1, categoria: 'Pizzas' }, pngValido);
+    assert.strictEqual(estado, 400);
+    assert.strictEqual(archivosSubidos().length, antes, 'Quedó una imagen huérfana');
+  });
+
+  await prueba('Al reemplazar la imagen de un plato se borra la anterior', async () => {
+    const alta = await enviarPlato('POST', '/api/platos', local1.token,
+      { nombre: `Plato con foto ${SUFIJO}`, precio: 100, stock: 1, categoria: 'Pizzas' }, pngValido);
+    assert.strictEqual(alta.estado, 201);
+    creados.platos.push(alta.datos.plato.id);
+    const imagenAnterior = alta.datos.plato.imagenUrl;
+
+    const edicion = await enviarPlato('PUT', `/api/platos/${alta.datos.plato.id}`, local1.token,
+      { nombre: `Plato con foto nueva ${SUFIJO}` }, pngValido);
+    assert.strictEqual(edicion.estado, 200);
+    const imagenNueva = edicion.datos.plato.imagenUrl;
+
+    assert.notStrictEqual(imagenNueva, imagenAnterior);
+    assert.ok(!fs.existsSync(rutaEnDisco(imagenAnterior)), 'La imagen anterior quedó en disco');
+    assert.ok(fs.existsSync(rutaEnDisco(imagenNueva)), 'Se borró la imagen nueva');
+
+    // Se elimina por la API para que la imagen nueva tampoco quede en disco.
+    await pedir('DELETE', `/api/platos/${alta.datos.plato.id}`, { token: local1.token });
+  });
+
+  await prueba('Al eliminar un plato se borra su imagen del disco', async () => {
+    const alta = await enviarPlato('POST', '/api/platos', local1.token,
+      { nombre: `Plato a eliminar ${SUFIJO}`, precio: 100, stock: 1, categoria: 'Pizzas' }, pngValido);
+    assert.strictEqual(alta.estado, 201);
+    const archivo = rutaEnDisco(alta.datos.plato.imagenUrl);
+    assert.ok(fs.existsSync(archivo), 'La imagen no se guardó');
+
+    const baja = await pedir('DELETE', `/api/platos/${alta.datos.plato.id}`, { token: local1.token });
+    assert.strictEqual(baja.estado, 200);
+    assert.ok(!fs.existsSync(archivo), 'La imagen quedó huérfana en disco');
+  });
+
+  // -------------------------------------------------------------------------
   seccion('APLICACIÓN (app.js)');
 
   await prueba('Una ruta inexistente responde 404 en JSON', async () => {
