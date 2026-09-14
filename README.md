@@ -58,14 +58,14 @@ Proyecto final de carrera — arquitectura full-stack adaptada a PostgreSQL.
 ### Vendedor (local)
 - ABM completo de su menú, con carga de imágenes.
 - Panel de comandas separado en Pendientes / Enviados / Rechazados.
-- Cambio de estado únicamente sobre sus propios productos.
+- Despacho o rechazo únicamente de sus propios productos; al rechazar, el stock vuelve.
 - Resumen de ventas: facturación, comandas recibidas, pendientes y alertas de stock.
 - Respuesta a las consultas de sus clientes.
 
 ### Administrador
 - KPIs globales: usuarios, platos, locales, pedidos y volumen de ventas.
 - Liquidación de comisiones por local (5 % configurable).
-- Gestión global de usuarios y cambio de roles.
+- Gestión global de usuarios: cambio de roles y desactivación de cuentas, que conserva su historial.
 - Evaluación de las solicitudes de alta de local, con todos los datos del formulario.
 - Moderación de cualquier plato o pedido de la plataforma.
 
@@ -249,7 +249,7 @@ Usuario ──< Plato ──< PedidoItem >── Pedido >── Usuario
 
 | Tabla | Rol |
 |---|---|
-| `Usuarios` | Cuentas y roles (`foodie`, `vendedor`, `admin`) más los datos de la solicitud de alta de local |
+| `Usuarios` | Cuentas y roles (`foodie`, `vendedor`, `admin`), si la cuenta está activa, y los datos de la solicitud de alta de local |
 | `platos` | Catálogo, con `vendedorId` como dueño |
 | `Pedidos` | Cabecera de la compra: comprador, total y estado general |
 | `PedidoItems` | Una fila por producto comprado, con su `vendedorId`, precio, cantidad y estado |
@@ -257,7 +257,8 @@ Usuario ──< Plato ──< PedidoItem >── Pedido >── Usuario
 
 El esquema lo administran las migraciones de Sequelize (`server/migrations/`),
 no `sequelize.sync()`: así el estado de la base queda versionado y es
-reproducible en cualquier máquina.
+reproducible en cualquier máquina. Después de actualizar el código, `npm run
+db:migrate` aplica las migraciones nuevas.
 
 > En PostgreSQL los nombres con mayúsculas son sensibles a mayúsculas y hay que
 > escribirlos entre comillas dobles al consultarlos a mano:
@@ -283,7 +284,7 @@ Base: `http://localhost:3000/api`
 
 | Método | Ruta | Acceso |
 |---|---|---|
-| `GET` | `/platos` | Público (acepta `?busqueda=` y `?categoria=`) |
+| `GET` | `/platos` | Público (acepta `?busqueda=` y `?categoria=`; solo platos de locales activos) |
 | `GET` | `/platos/categorias` | Público |
 | `GET` | `/platos/mis-platos` | Vendedor · admin |
 | `POST` | `/platos` | Vendedor · admin |
@@ -313,7 +314,8 @@ Todas requieren rol `admin`.
 | `GET` | `/admin/usuarios` |
 | `PUT` | `/admin/usuarios/:id/rol` |
 | `PUT` | `/admin/usuarios/:id/rechazar-vendedor` |
-| `DELETE` | `/admin/usuarios/:id` |
+| `PUT` | `/admin/usuarios/:id/desactivar` |
+| `PUT` | `/admin/usuarios/:id/reactivar` |
 | `GET` | `/admin/platos` |
 | `DELETE` | `/admin/platos/:id` |
 | `GET` | `/admin/pedidos` |
@@ -327,9 +329,9 @@ Todas las respuestas de error tienen la forma `{ "mensaje": "..." }`.
 | Código | Cuándo |
 |---|---|
 | `400` | Datos inválidos: campos faltantes, tipos incorrectos, textos que superan el largo permitido, un cuerpo que no es JSON o un id de la URL que no es un entero positivo |
-| `401` | Falta el token, es inválido o expiró, el usuario ya no existe o su rol cambió desde que inició sesión |
-| `403` | El rol no alcanza, el recurso pertenece a otro local o el origen no está habilitado por CORS |
-| `404` | El recurso o la ruta no existen |
+| `401` | Falta el token, es inválido o expiró, o el usuario ya no existe, fue desactivado o cambió de rol desde que inició sesión |
+| `403` | El rol no alcanza, el recurso pertenece a otro local, la cuenta está desactivada (al iniciar sesión) o el origen no está habilitado por CORS |
+| `404` | El recurso o la ruta no existen, o el plato ya no está a la venta |
 | `409` | Conflicto: email ya registrado, stock insuficiente, solicitud de vendedor ya pendiente o un pedido que ya tiene estado final |
 | `413` | El cuerpo de la solicitud supera el tamaño permitido |
 | `500` | Error inesperado del servidor; el detalle queda solo en el log |
@@ -350,8 +352,8 @@ Además de validar la firma, `autenticar` busca al usuario en la base en cada
 request. El token guarda el rol que el usuario tenía al iniciar sesión: sin esa
 consulta, un vendedor al que el administrador le quitaba el rol seguía
 publicando platos hasta que el token vencía, 24 horas después. Si el usuario ya
-no existe o su rol cambió, la API responde 401 y el frontend cierra la sesión
-mostrando el motivo.
+no existe, está desactivado o su rol cambió, la API responde 401 y el frontend
+cierra la sesión mostrando el motivo.
 
 ### Multitenencia por línea de pedido
 
@@ -391,6 +393,22 @@ queda: ninguno de los dos se puede revertir.
 - Las operaciones usan transacciones administradas por Sequelize: si algo
   falla se revierte todo, y nunca se intenta revertir una transacción que ya
   se confirmó.
+
+### Las cuentas se desactivan, no se borran
+
+Borrar un usuario eliminaba en cascada sus pedidos, y con ellos cambiaban las
+liquidaciones ya calculadas de los locales. Por eso la API ya no borra cuentas:
+el administrador las **desactiva**.
+
+- Una cuenta desactivada no puede iniciar sesión y su token deja de servir.
+- Los platos de un local desactivado, o que perdió el rol de vendedor, salen del
+  catálogo y no se pueden comprar, pero siguen guardados.
+- Sus pedidos, ventas y liquidaciones quedan intactos, y la cuenta se puede
+  reactivar.
+
+La regla de quién puede vender vive en un único lugar: el scope
+`habilitadoParaVender` del modelo `Usuario`, que usan el catálogo, la compra y
+los KPIs del administrador.
 
 ### Los datos inválidos son un 400, no un 500
 
@@ -434,6 +452,7 @@ escenarios críticos del sistema, agrupados en:
 
 - **Autenticación** — tokens inválidos, mensajes de login que no revelan qué correos existen, imposibilidad de auto-asignarse el rol `admin` al registrarse.
 - **Permisos vigentes** — un token deja de servir cuando el usuario se elimina o cambia de rol, y al volver a iniciar sesión rige el rol nuevo.
+- **Cuentas desactivadas** — pierden el acceso sin revelar que existen, conservan sus pedidos y liquidaciones, sus platos salen del catálogo y vuelven al reactivarlas, y los usuarios ya no se pueden borrar desde la API.
 - **Pedidos y stock** — descuento correcto, rechazo por falta de stock sin efectos colaterales, dos compras simultáneas del último plato disponible, precios inmunes a manipulación del cliente.
 - **Estados finales** — al rechazar vuelve el stock (sin superar el máximo), Enviado y Rechazado no se pueden revertir, y dos locales despachando a la vez dejan el pedido en Enviado.
 - **Aislamiento entre locales** — un cliente no lee pedidos ajenos, un local no ve ni modifica las comandas ni los platos de otro, y en un pedido mixto cada local gestiona solo su parte.
