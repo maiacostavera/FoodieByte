@@ -1,16 +1,26 @@
-# React + Vite
+# FoodieByte · Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación React 19 + Vite que consume la API de `server/`.
 
-Currently, two official plugins are available:
+La instalación, las variables de entorno y el resto de la documentación del
+proyecto están en el [README principal](../README.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Comandos
 
-## React Compiler
+| Comando | Descripción |
+|---|---|
+| `npm run dev` | Servidor de desarrollo en http://localhost:5173 |
+| `npm run build` | Build de producción en `dist/` |
+| `npm run preview` | Sirve el build para verificarlo |
+| `npm run lint` | ESLint |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Estructura de `src/`
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Carpeta | Contenido |
+|---|---|
+| `api/client.js` | Instancia de Axios: URL base, token y manejo de sesión vencida |
+| `state/` | Contexto global de sesión, carrito y avisos |
+| `components/` | Pantallas y piezas de la interfaz |
+| `components/admin/` | Piezas del panel de gestión |
+| `utils/` | Funciones auxiliares (resolución de la imagen de cada plato) |
+| `assets/` | Imágenes importadas como módulos para que entren al build |
