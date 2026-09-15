@@ -733,6 +733,28 @@ async function ejecutar() {
     }
   });
 
+  await prueba('Un pedido con una parte enviada y otra rechazada queda Enviado', async () => {
+    const platoA = await crearPlato(local1.usuario.id, 'Plato Mixto A', 100, 10);
+    const platoB = await crearPlato(local2.usuario.id, 'Plato Mixto B', 100, 10);
+
+    const { datos } = await pedir('POST', '/api/pedidos', {
+      token: cliente2.token,
+      body: { productos: [{ id: platoA.id, cantidad: 1 }, { id: platoB.id, cantidad: 1 }] }
+    });
+    const pedidoId = datos.pedido.id;
+
+    const envio = await pedir('PUT', `/api/pedidos/${pedidoId}/estado`, { token: local1.token, body: { nuevoEstado: 'Enviado' } });
+    assert.strictEqual(envio.datos.estadoPedido, 'Pendiente', 'Con un local sin responder, el pedido tiene que seguir Pendiente');
+
+    const rechazo = await pedir('PUT', `/api/pedidos/${pedidoId}/estado`, { token: local2.token, body: { nuevoEstado: 'Rechazado' } });
+    assert.strictEqual(rechazo.datos.estadoPedido, 'Enviado');
+
+    const { datos: misPedidos } = await pedir('GET', '/api/pedidos/mis-pedidos', { token: cliente2.token });
+    const pedido = misPedidos.find(p => p.id === pedidoId);
+    assert.strictEqual(pedido.estado, 'Enviado', `El pedido quedó ${pedido.estado} sin líneas pendientes`);
+    assert.deepStrictEqual(pedido.items.map(i => i.estado).sort(), ['Enviado', 'Rechazado'], 'Cada línea tiene que conservar su propio estado');
+  });
+
   // -------------------------------------------------------------------------
   seccion('PERMISOS VIGENTES (el rol sale de la base, no del token)');
 
