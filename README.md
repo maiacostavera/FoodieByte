@@ -301,7 +301,7 @@ Base: `http://localhost:3000/api`
 | `POST` | `/pedidos` | Foodie |
 | `GET` | `/pedidos/mis-pedidos` | Autenticado (solo los propios) |
 | `GET` | `/pedidos/comandas` | Vendedor (solo las suyas) · admin |
-| `PUT` | `/pedidos/:id/estado` | Vendedor (solo sus líneas) · admin |
+| `PUT` | `/pedidos/:id/estado` | Vendedor (solo sus líneas pendientes) · admin. Acepta `Enviado` o `Rechazado` |
 | `GET` | `/pedidos/estadisticas` | Vendedor (solo lo suyo) · admin |
 
 ### Administración
@@ -330,7 +330,7 @@ Todas las respuestas de error tienen la forma `{ "mensaje": "..." }`.
 | `401` | Falta el token, es inválido o expiró |
 | `403` | El rol no alcanza, el recurso pertenece a otro local o el origen no está habilitado por CORS |
 | `404` | El recurso o la ruta no existen |
-| `409` | Conflicto: email ya registrado, stock insuficiente o solicitud de vendedor ya pendiente |
+| `409` | Conflicto: email ya registrado, stock insuficiente, solicitud de vendedor ya pendiente o un pedido que ya tiene estado final |
 | `413` | El cuerpo de la solicitud supera el tamaño permitido |
 | `500` | Error inesperado del servidor; el detalle queda solo en el log |
 
@@ -370,6 +370,20 @@ La creación de un pedido corre dentro de una transacción de Sequelize con
 ascendente de `id` para que dos compras simultáneas no se interbloqueen. Si
 cualquier ítem no tiene stock, la transacción se revierte completa y no se
 descuenta nada.
+
+### Enviado y Rechazado son estados finales
+
+Cada línea de un pedido pasa de `Pendiente` a `Enviado` o a `Rechazado`, y ahí
+queda: ninguno de los dos se puede revertir.
+
+- **Al rechazar, las unidades vuelven al stock** del plato, sin superar el
+  máximo permitido.
+- **Se bloquea el pedido** antes de cambiar sus líneas. Si dos locales de un
+  mismo pedido despachan a la vez, el segundo espera al primero y el estado
+  general se calcula sobre datos actualizados.
+- Las operaciones usan transacciones administradas por Sequelize: si algo
+  falla se revierte todo, y nunca se intenta revertir una transacción que ya
+  se confirmó.
 
 ### Los datos inválidos son un 400, no un 500
 
@@ -413,6 +427,7 @@ escenarios críticos del sistema, agrupados en:
 
 - **Autenticación** — tokens inválidos, mensajes de login que no revelan qué correos existen, imposibilidad de auto-asignarse el rol `admin` al registrarse.
 - **Pedidos y stock** — descuento correcto, rechazo por falta de stock sin efectos colaterales, dos compras simultáneas del último plato disponible, precios inmunes a manipulación del cliente.
+- **Estados finales** — al rechazar vuelve el stock (sin superar el máximo), Enviado y Rechazado no se pueden revertir, y dos locales despachando a la vez dejan el pedido en Enviado.
 - **Aislamiento entre locales** — un cliente no lee pedidos ajenos, un local no ve ni modifica las comandas ni los platos de otro, y en un pedido mixto cada local gestiona solo su parte.
 - **Administración** — control de acceso por rol y exactitud del cálculo de comisiones.
 - **Solicitudes y preguntas** — persistencia real de los datos y control de quién puede responder.

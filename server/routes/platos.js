@@ -77,8 +77,8 @@ const validarDatosDePlato = (body, { exigirTodos }) => {
 
   if (body.stock !== undefined || exigirTodos) {
     const stock = parseInt(body.stock, 10);
-    if (Number.isNaN(stock) || stock < 0 || stock > 100) {
-      errores.push('El stock debe ser un número entre 0 y 100.');
+    if (Number.isNaN(stock) || stock < 0 || stock > LIMITES.stock) {
+      errores.push(`El stock debe ser un número entre 0 y ${LIMITES.stock}.`);
     } else {
       datos.stock = stock;
     }
@@ -244,8 +244,8 @@ router.put('/:id', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), (req, r
 router.put('/:id/stock', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), async (req, res) => {
   try {
     const stock = parseInt(req.body.stock, 10);
-    if (Number.isNaN(stock) || stock < 0 || stock > 100) {
-      return res.status(400).json({ mensaje: 'El stock debe ser un número entre 0 y 100.' });
+    if (Number.isNaN(stock) || stock < 0 || stock > LIMITES.stock) {
+      return res.status(400).json({ mensaje: `El stock debe ser un número entre 0 y ${LIMITES.stock}.` });
     }
 
     const plato = await Plato.findByPk(req.params.id);

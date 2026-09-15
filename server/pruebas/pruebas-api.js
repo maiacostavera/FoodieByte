@@ -629,6 +629,111 @@ async function ejecutar() {
   });
 
   // -------------------------------------------------------------------------
+  seccion('ESTADOS FINALES Y STOCK DE LAS COMANDAS');
+
+  const comprar = async (cliente, plato, cantidad) => {
+    const { estado, datos } = await pedir('POST', '/api/pedidos', {
+      token: cliente.token,
+      body: { productos: [{ id: plato.id, cantidad }] }
+    });
+    assert.strictEqual(estado, 201, `La compra de preparación falló: ${datos && datos.mensaje}`);
+    return datos.pedido;
+  };
+
+  const platoRechazos = await crearPlato(local2.usuario.id, 'Plato Rechazos', 800, 5);
+  let pedidoRechazado;
+
+  await prueba('Al rechazar un pedido las unidades vuelven al stock', async () => {
+    pedidoRechazado = await comprar(cliente1, platoRechazos, 2);
+    await platoRechazos.reload();
+    assert.strictEqual(platoRechazos.stock, 3, 'La compra no descontó el stock');
+
+    const { estado } = await pedir('PUT', `/api/pedidos/${pedidoRechazado.id}/estado`, {
+      token: local2.token,
+      body: { nuevoEstado: 'Rechazado' }
+    });
+    assert.strictEqual(estado, 200);
+
+    await platoRechazos.reload();
+    assert.strictEqual(platoRechazos.stock, 5, 'El rechazo no repuso el stock');
+  });
+
+  await prueba('Un pedido rechazado no se puede volver a cambiar', async () => {
+    const { estado } = await pedir('PUT', `/api/pedidos/${pedidoRechazado.id}/estado`, {
+      token: local2.token,
+      body: { nuevoEstado: 'Enviado' }
+    });
+    assert.strictEqual(estado, 409);
+
+    const lineas = await PedidoItem.findAll({ where: { pedidoId: pedidoRechazado.id } });
+    assert.ok(lineas.every(l => l.estado === 'Rechazado'), 'Se alteró un estado final');
+  });
+
+  await prueba('Un pedido enviado tampoco se puede rechazar después', async () => {
+    const pedido = await comprar(cliente1, platoRechazos, 1);
+    await pedir('PUT', `/api/pedidos/${pedido.id}/estado`, { token: local2.token, body: { nuevoEstado: 'Enviado' } });
+    await platoRechazos.reload();
+    const stockTrasEnviar = platoRechazos.stock;
+
+    const { estado } = await pedir('PUT', `/api/pedidos/${pedido.id}/estado`, {
+      token: local2.token,
+      body: { nuevoEstado: 'Rechazado' }
+    });
+    assert.strictEqual(estado, 409);
+
+    await platoRechazos.reload();
+    assert.strictEqual(platoRechazos.stock, stockTrasEnviar, 'Se repuso el stock de un pedido ya enviado');
+  });
+
+  await prueba('Pendiente no es un estado al que se pueda pasar', async () => {
+    const pedido = await comprar(cliente1, platoRechazos, 1);
+    const { estado } = await pedir('PUT', `/api/pedidos/${pedido.id}/estado`, {
+      token: local2.token,
+      body: { nuevoEstado: 'Pendiente' }
+    });
+    assert.strictEqual(estado, 400);
+  });
+
+  await prueba('La reposición respeta el stock máximo del plato', async () => {
+    const platoTope = await crearPlato(local2.usuario.id, 'Plato Tope', 300, 1);
+    const pedido = await comprar(cliente2, platoTope, 1);
+
+    // Mientras el pedido estaba pendiente, el local recargó el stock al máximo.
+    await pedir('PUT', `/api/platos/${platoTope.id}/stock`, { token: local2.token, body: { stock: 100 } });
+
+    const { estado } = await pedir('PUT', `/api/pedidos/${pedido.id}/estado`, {
+      token: local2.token,
+      body: { nuevoEstado: 'Rechazado' }
+    });
+    assert.strictEqual(estado, 200);
+
+    await platoTope.reload();
+    assert.strictEqual(platoTope.stock, 100);
+  });
+
+  await prueba('Dos locales despachando a la vez dejan el pedido en Enviado', async () => {
+    const platoA = await crearPlato(local1.usuario.id, 'Plato Simultáneo A', 100, 20);
+    const platoB = await crearPlato(local2.usuario.id, 'Plato Simultáneo B', 100, 20);
+
+    // Varias rondas, para que la carrera tenga oportunidad real de ocurrir.
+    for (let ronda = 1; ronda <= 5; ronda++) {
+      const { datos } = await pedir('POST', '/api/pedidos', {
+        token: cliente2.token,
+        body: { productos: [{ id: platoA.id, cantidad: 1 }, { id: platoB.id, cantidad: 1 }] }
+      });
+      const pedidoId = datos.pedido.id;
+
+      await Promise.all([
+        pedir('PUT', `/api/pedidos/${pedidoId}/estado`, { token: local1.token, body: { nuevoEstado: 'Enviado' } }),
+        pedir('PUT', `/api/pedidos/${pedidoId}/estado`, { token: local2.token, body: { nuevoEstado: 'Enviado' } })
+      ]);
+
+      const pedido = await Pedido.findByPk(pedidoId);
+      assert.strictEqual(pedido.estado, 'Enviado', `Ronda ${ronda}: el pedido quedó ${pedido.estado} con todas sus líneas enviadas`);
+    }
+  });
+
+  // -------------------------------------------------------------------------
   seccion('APLICACIÓN (app.js)');
 
   await prueba('Una ruta inexistente responde 404 en JSON', async () => {
