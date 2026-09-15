@@ -122,7 +122,11 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
         const cantidad = consolidados.get(platoId);
 
         const plato = await Plato.findByPk(platoId, { transaction: t, lock: t.LOCK.UPDATE });
-        if (!plato) {
+        // Un plato cuyo local se desactivó o perdió el rol de vendedor ya no
+        // está a la venta, aunque siga guardado en la base.
+        const localHabilitado = plato && await Usuario.scope('habilitadoParaVender')
+          .count({ where: { id: plato.vendedorId }, transaction: t });
+        if (!plato || !localHabilitado) {
           throw new ErrorDeNegocio(404, `El plato con id ${platoId} ya no está disponible.`);
         }
         if (plato.stock < cantidad) {
