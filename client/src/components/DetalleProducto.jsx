@@ -1,9 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import api, { mensajeDeError } from '../api/client';
 import { imagenDelPlato } from '../utils/imagenes';
+import { formatearMoneda } from '../utils/formato';
+import { LIMITES } from '../utils/limites';
 import { useFoodie } from '../state/FoodieContext';
 
-function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos }) {
+/**
+ * Ficha de un plato. Es pública: sin sesión se ven el detalle y las consultas,
+ * y la sesión se pide recién para comprar o preguntar.
+ */
+function DetalleProducto({ plato, alCerrar, alAgregar, alPedirLogin, usuario, onRefreshPlatos }) {
     const { mostrarAviso } = useFoodie();
 
     const [cantidad, setCantidad] = useState(1);
@@ -20,6 +26,7 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
     const [guardandoStock, setGuardandoStock] = useState(false);
 
     const platoId = plato?.id;
+    const esVisitante = !usuario;
     const esGestor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin';
     const esFoodie = usuario?.rol === 'foodie';
     // Solo el dueño del plato (o el admin) puede responder consultas.
@@ -100,6 +107,7 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
     };
 
     const nombreDelLocal = plato.vendedor?.nombre_local || plato.vendedor?.nombre;
+    const muestraFormularioDePregunta = esFoodie || esVisitante;
 
     return (
         <div style={estiloContenedor}>
@@ -111,7 +119,7 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
             </button>
 
             <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 400px' }}>
+                <div style={{ flex: '1 1 320px' }}>
                     <div style={estiloImagenContainer}>
                         <img src={imagenDelPlato(plato.categoria, plato.imagenUrl)} alt={plato.nombre}
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -127,7 +135,7 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
 
                 <div style={{ flex: '1 1 300px' }}>
                     <span style={estiloCategoria}>{plato.categoria}</span>
-                    <h1 style={{ fontSize: '2.2rem', color: '#212121', margin: '8px 0 12px 0', fontWeight: '700' }}>{plato.nombre}</h1>
+                    <h1 style={estiloNombre}>{plato.nombre}</h1>
 
                     {nombreDelLocal && (
                         <p style={{ color: '#757575', fontSize: '0.9rem', margin: '0 0 24px 0' }}>
@@ -139,7 +147,7 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
 
                     <div style={estiloPrecioBox}>
                         <span style={{ fontSize: '2.2rem', fontWeight: '700', color: '#d32f2f' }}>
-                            ${Number(plato.precio).toLocaleString('es-AR')}
+                            {formatearMoneda(plato.precio)}
                         </span>
                         <div style={{ textAlign: 'right' }}>
                             <p style={{ margin: 0, color: '#212121', fontWeight: '600', fontSize: '0.95rem' }}>Stock Disponible</p>
@@ -155,7 +163,7 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
                             {puedeResponder ? (
                                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                                     <label htmlFor="campo-stock" style={{ color: '#424242', fontSize: '0.9rem', fontWeight: '500' }}>Nuevo stock:</label>
-                                    <input id="campo-stock" type="number" min="0" max="100" value={nuevoStock}
+                                    <input id="campo-stock" type="number" min="0" max={LIMITES.stock} value={nuevoStock}
                                         onChange={(e) => setNuevoStock(parseInt(e.target.value, 10) || 0)}
                                         style={estiloInputStock} />
                                     <button onClick={guardarStock} disabled={guardandoStock}
@@ -169,8 +177,14 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
                                 </p>
                             )}
                         </div>
+                    ) : esVisitante ? (
+                        <button onClick={() => alPedirLogin('Para agregar platos al carrito, iniciá sesión primero.')}
+                            disabled={stockActual === 0}
+                            style={{ ...estiloBotonAgregar, width: '100%', opacity: stockActual === 0 ? 0.5 : 1, cursor: stockActual === 0 ? 'not-allowed' : 'pointer' }}>
+                            {stockActual === 0 ? 'Sin Stock' : 'Iniciá sesión para comprar'}
+                        </button>
                     ) : (
-                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
                             <div style={estiloSelectorCantidad}>
                                 <button onClick={() => setCantidad(Math.max(1, cantidad - 1))} style={estiloBotonCantidad} aria-label="Quitar una unidad">-</button>
                                 <span style={{ padding: '0 20px', fontWeight: '600', color: '#212121', fontSize: '1rem' }}>{cantidad}</span>
@@ -191,21 +205,32 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
 
             <hr style={{ margin: '48px 0', border: '0', borderTop: '1px solid #eeeeee' }} />
 
-            <div style={{ display: 'grid', gridTemplateColumns: esFoodie ? '1fr 1fr' : '1fr', gap: '48px' }}>
-                {esFoodie && (
+            <div style={estiloSeccionPreguntas}>
+                {muestraFormularioDePregunta && (
                     <div>
                         <h3 style={estiloTituloSeccion}>¿Tenés alguna duda?</h3>
-                        <form onSubmit={enviarPregunta}>
-                            <label htmlFor="campo-pregunta" style={{ display: 'none' }}>Tu consulta</label>
-                            <textarea id="campo-pregunta" maxLength={500}
-                                placeholder="Escribí tu consulta sobre ingredientes, envío o preparación…"
-                                value={pregunta} onChange={(e) => setPregunta(e.target.value)}
-                                style={estiloTextarea} />
-                            <button type="submit" disabled={enviandoPregunta}
-                                style={{ ...estiloBotonPregunta, opacity: enviandoPregunta ? 0.6 : 1 }}>
-                                {enviandoPregunta ? 'Enviando…' : 'Enviar Pregunta'}
-                            </button>
-                        </form>
+                        {esFoodie ? (
+                            <form onSubmit={enviarPregunta}>
+                                <label htmlFor="campo-pregunta" style={{ display: 'none' }}>Tu consulta</label>
+                                <textarea id="campo-pregunta" maxLength={LIMITES.pregunta}
+                                    placeholder="Escribí tu consulta sobre ingredientes, envío o preparación…"
+                                    value={pregunta} onChange={(e) => setPregunta(e.target.value)}
+                                    style={estiloTextarea} />
+                                <button type="submit" disabled={enviandoPregunta}
+                                    style={{ ...estiloBotonPregunta, opacity: enviandoPregunta ? 0.6 : 1 }}>
+                                    {enviandoPregunta ? 'Enviando…' : 'Enviar Pregunta'}
+                                </button>
+                            </form>
+                        ) : (
+                            <div style={estiloInvitacion}>
+                                <p style={{ margin: '0 0 16px 0', color: '#616161', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                                    Iniciá sesión para preguntarle al local sobre ingredientes, envío o preparación.
+                                </p>
+                                <button onClick={() => alPedirLogin('Para dejar una consulta, iniciá sesión primero.')} style={estiloBotonPregunta}>
+                                    Iniciar sesión para preguntar
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -228,7 +253,7 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
                                     {p.respuesta ? (
                                         <p style={estiloRespuesta}>Respuesta: {p.respuesta}</p>
                                     ) : puedeResponder ? (
-                                        <div style={{ display: 'flex', gap: '8px', paddingLeft: '16px', borderLeft: '3px solid #ff9800' }}>
+                                        <div style={{ display: 'flex', gap: '8px', paddingLeft: '16px', borderLeft: '3px solid #ff9800', flexWrap: 'wrap' }}>
                                             <input type="text" placeholder="Escribí tu respuesta…"
                                                 value={respuestaTexto[p.id] || ''}
                                                 onChange={(e) => setRespuestaTexto(prev => ({ ...prev, [p.id]: e.target.value }))}
@@ -251,19 +276,23 @@ function DetalleProducto({ plato, alCerrar, alAgregar, usuario, onRefreshPlatos 
     );
 }
 
-const estiloContenedor = { padding: '40px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', maxWidth: '1000px', margin: '20px auto', fontFamily: "'Poppins', sans-serif" };
+const estiloContenedor = { padding: 'clamp(20px, 4vw, 40px)', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', maxWidth: '1000px', margin: '20px auto', fontFamily: "'Poppins', sans-serif" };
 const estiloBotonVolver = { marginBottom: '24px', background: 'transparent', border: '1px solid #e0e0e0', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', color: '#424242', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Poppins', sans-serif", fontSize: '0.9rem' };
-const estiloImagenContainer = { backgroundColor: '#f9f9f9', height: '400px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #eeeeee', overflow: 'hidden' };
+const estiloImagenContainer = { backgroundColor: '#f9f9f9', height: 'clamp(240px, 45vw, 400px)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #eeeeee', overflow: 'hidden' };
 const estiloCategoria = { color: '#d32f2f', fontWeight: '600', textTransform: 'uppercase', fontSize: '0.85rem', letterSpacing: '0.5px' };
+const estiloNombre = { fontSize: 'clamp(1.6rem, 4vw, 2.2rem)', color: '#212121', margin: '8px 0 12px 0', fontWeight: '700' };
 const estiloTag = { padding: '6px 12px', border: '1px solid #e0e0e0', color: '#424242', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '500', backgroundColor: '#ffffff' };
-const estiloPrecioBox = { background: '#fafafa', border: '1px solid #eeeeee', padding: '24px', borderRadius: '8px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' };
+const estiloPrecioBox = { background: '#fafafa', border: '1px solid #eeeeee', padding: '24px', borderRadius: '8px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' };
 const estiloSelectorCantidad = { display: 'flex', alignItems: 'center', border: '1px solid #e0e0e0', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#ffffff' };
 const estiloBotonCantidad = { background: '#f5f5f5', border: 'none', padding: '12px 16px', fontSize: '1.2rem', cursor: 'pointer', color: '#424242', outline: 'none' };
 const estiloBotonAgregar = { flex: 1, backgroundColor: '#d32f2f', color: '#ffffff', border: 'none', padding: '16px', borderRadius: '4px', fontSize: '1rem', fontWeight: '600', fontFamily: "'Poppins', sans-serif" };
 const estiloVendedorBox = { background: '#fff8e1', border: '1px solid #ffe082', padding: '24px', borderRadius: '8px', marginBottom: '16px' };
 const estiloInputStock = { width: '90px', padding: '10px 12px', borderRadius: '4px', border: '1px solid #e0e0e0', fontSize: '1rem', fontFamily: "'Poppins', sans-serif", textAlign: 'center' };
 const estiloBotonGuardarStock = { backgroundColor: '#2e7d32', color: '#ffffff', border: 'none', padding: '10px 20px', borderRadius: '4px', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: "'Poppins', sans-serif" };
-const estiloInputRespuesta = { flex: 1, padding: '8px 12px', borderRadius: '4px', border: '1px solid #e0e0e0', fontSize: '0.9rem', fontFamily: "'Poppins', sans-serif", outline: 'none' };
+// Dos columnas en pantallas anchas y una sola en el celular.
+const estiloSeccionPreguntas = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '48px' };
+const estiloInvitacion = { backgroundColor: '#fafafa', border: '1px dashed #e0e0e0', borderRadius: '8px', padding: '20px' };
+const estiloInputRespuesta = { flex: '1 1 200px', padding: '8px 12px', borderRadius: '4px', border: '1px solid #e0e0e0', fontSize: '0.9rem', fontFamily: "'Poppins', sans-serif", outline: 'none' };
 const estiloBotonResponder = { backgroundColor: '#d32f2f', color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '4px', fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem', fontFamily: "'Poppins', sans-serif", whiteSpace: 'nowrap' };
 const estiloTextarea = { width: '100%', height: '120px', padding: '16px', borderRadius: '4px', border: '1px solid #e0e0e0', backgroundColor: '#fafafa', fontFamily: 'inherit', marginBottom: '16px', outline: 'none', resize: 'none', boxSizing: 'border-box' };
 const estiloBotonPregunta = { backgroundColor: '#212121', color: '#ffffff', border: 'none', padding: '12px 24px', borderRadius: '4px', fontWeight: '500', cursor: 'pointer', fontFamily: "'Poppins', sans-serif" };

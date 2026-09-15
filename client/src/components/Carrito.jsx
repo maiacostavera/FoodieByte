@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useFoodie } from '../state/FoodieContext';
+import { formatearMoneda } from '../utils/formato';
 
-const formatearMoneda = (valor) => `$${Number(valor || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
-
-function Carrito({ alCerrar }) {
+function Carrito({ alCerrar, alConfirmarCompra }) {
     const {
         carrito, totalCarrito, usuario, mostrarAviso,
         agregarAlCarrito, disminuirDelCarrito, eliminarDelCarrito, enviarPedidoAlServidor
@@ -25,7 +24,10 @@ function Carrito({ alCerrar }) {
         const exito = await enviarPedidoAlServidor();
         setProcesando(false);
 
-        if (exito && alCerrar) alCerrar();
+        if (!exito) return;
+        // La compra descontó stock: el catálogo tiene que mostrar las cantidades nuevas.
+        if (alConfirmarCompra) alConfirmarCompra();
+        if (alCerrar) alCerrar();
     };
 
     return (

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import api, { mensajeDeError } from '../api/client';
-
-const formatearMoneda = (valor) => `$${Number(valor || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+import { formatearMoneda } from '../utils/formato';
 
 function MisPedidos({ alCerrar }) {
     const [pedidos, setPedidos] = useState([]);

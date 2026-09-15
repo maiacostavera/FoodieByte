@@ -62,5 +62,5 @@ export const badgeEstado = (estado) => {
     return { ...base, backgroundColor: '#fff8e1', color: '#f57f17' };
 };
 
-export const formatearMoneda = (valor) =>
-    `$${Number(valor || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// El formato de los importes es uno solo para toda la aplicación.
+export { formatearMoneda } from '../../utils/formato';

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import api, { mensajeDeError } from '../api/client';
 import { useFoodie } from '../state/FoodieContext';
+import { LIMITES } from '../utils/limites';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -62,6 +63,7 @@ function Signup({ alIrALogin }) {
                     <div style={estiloGrupoInput}>
                         <label htmlFor="alta-nombre" style={estiloLabel}>Nombre completo</label>
                         <input id="alta-nombre" type="text" placeholder="Ej. Juan Pérez" autoComplete="name"
+                            maxLength={LIMITES.nombre}
                             value={datos.nombre} onChange={e => actualizar('nombre', e.target.value)} style={estiloInput} />
                         {errores.nombre && <span style={estiloError}>{errores.nombre}</span>}
                     </div>
@@ -69,6 +71,7 @@ function Signup({ alIrALogin }) {
                     <div style={estiloGrupoInput}>
                         <label htmlFor="alta-email" style={estiloLabel}>Correo electrónico</label>
                         <input id="alta-email" type="email" placeholder="juan.perez@ejemplo.com" autoComplete="email"
+                            maxLength={LIMITES.email}
                             value={datos.email} onChange={e => actualizar('email', e.target.value)} style={estiloInput} />
                         {errores.email && <span style={estiloError}>{errores.email}</span>}
                     </div>
@@ -76,6 +79,7 @@ function Signup({ alIrALogin }) {
                     <div style={estiloGrupoInput}>
                         <label htmlFor="alta-password" style={estiloLabel}>Contraseña</label>
                         <input id="alta-password" type="password" placeholder="Mínimo 6 caracteres" autoComplete="new-password"
+                            maxLength={LIMITES.password}
                             value={datos.password} onChange={e => actualizar('password', e.target.value)} style={estiloInput} />
                         {errores.password && <span style={estiloError}>{errores.password}</span>}
                     </div>
@@ -117,7 +121,7 @@ function Signup({ alIrALogin }) {
 }
 
 const estiloContenedorFondo = { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', padding: '40px 20px', fontFamily: "'Poppins', sans-serif" };
-const estiloTarjeta = { backgroundColor: '#ffffff', borderRadius: '8px', width: '100%', maxWidth: '420px', padding: '40px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', border: '1px solid #eeeeee' };
+const estiloTarjeta = { backgroundColor: '#ffffff', borderRadius: '8px', width: '100%', maxWidth: '420px', padding: 'clamp(24px, 6vw, 40px)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', border: '1px solid #eeeeee' };
 const estiloTitulo = { textAlign: 'center', color: '#212121', margin: '0 0 8px 0', fontSize: '1.5rem', fontWeight: '600' };
 const estiloSubtitulo = { textAlign: 'center', color: '#757575', margin: '0 0 32px 0', fontSize: '0.9rem' };
 const estiloFormulario = { display: 'flex', flexDirection: 'column', gap: '20px' };
