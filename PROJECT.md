@@ -117,9 +117,9 @@ Si se decide que los datos de prueba no valen la pena, no hay migración:
 npm run db:setup
 ```
 
-Crea el esquema y carga datos de ejemplo: un administrador y **dos locales** con
-diez platos repartidos entre ambos, pensados para poder demostrar el aislamiento
-entre vendedores.
+Crea el esquema y carga la demo completa: siete locales con 45 platos y fotos,
+clientes con seis semanas de pedidos, consultas y solicitudes de alta. El detalle
+está en la sección "Datos de demostración" del README.
 
 ---
 
@@ -503,9 +503,9 @@ hasta que diga `✅ Conexión establecida correctamente`.**
 
 ### Alternativa si los datos dejan de importar
 
-`npm run db:setup` crea el esquema y carga datos de ejemplo (dos locales con diez
-platos, pensados para poder demostrar el aislamiento entre vendedores). Se saltea
-la migración por completo.
+`npm run db:setup` crea el esquema y carga la demo completa (siete locales, 45
+platos con foto, seis semanas de pedidos, consultas y solicitudes de alta). Se
+saltea la migración por completo.
 
 ### Del repositorio y el equipo
 
@@ -617,7 +617,9 @@ FoodieByte/
     ├── scripts/
     │   ├── migrar-mysql-a-postgres.js
     │   └── verificar-conexion.js
-    ├── seeders/                   Admin + 2 locales de demo + 10 platos
+    ├── seeders/                   Demo: cuentas, platos con foto, pedidos y consultas
+    │   ├── datos/demo.js          Todo el contenido de la demo, en un solo archivo
+    │   └── fotos/                 Fotos de los platos (Unsplash, ver CREDITOS.md)
     └── pruebas/pruebas-api.js     73 pruebas de integración
 ```
 
@@ -689,8 +691,13 @@ de registros pasa a ser global.
 donde "cambia todo el archivo" sin cambios reales es de fin de línea: no
 commitearlo.
 
-**Los seeders necesitan `ADMIN_PASSWORD` en el `.env`** y cortan si falta. Es
-deliberado: no hay contraseñas por defecto en el código.
+**Los seeders necesitan `ADMIN_PASSWORD` en el `.env`** y cortan si falta. En el
+código no hay contraseñas: las de la demo (`admin1234` y `demo1234`) están en
+`.env.example`, que es solo una plantilla para correrlo en local.
+
+**Los seeders se pueden correr más de una vez** sin duplicar nada, pero no
+actualizan lo que ya existe. Si cambiás `seeders/datos/demo.js`, recargá todo
+con `npm run db:reset`.
 
 ---
 

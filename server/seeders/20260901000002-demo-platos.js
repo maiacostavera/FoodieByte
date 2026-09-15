@@ -1,51 +1,90 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+const { Op, QueryTypes } = require('sequelize');
+const { CARPETA_PLATOS, PREFIJO_URL, borrarArchivo } = require('../utils/imagenes');
+const { LOCALES } = require('./datos/demo');
+
+const CARPETA_FOTOS = path.join(__dirname, 'fotos');
+const HORA = 60 * 60 * 1000;
+
+// Los platos se publicaron antes del historial de pedidos de la demo, que
+// abarca las últimas seis semanas: ningún pedido queda anterior a su plato.
+const DIAS_DESDE_LA_PUBLICACION = 45;
+
+// Nombre con el que la foto queda en uploads/. El prefijo la distingue de las
+// fotos que suben los locales desde el panel.
+const archivoSubido = (foto) => `demo-${foto}.webp`;
+
 /**
- * Catálogo de demostración. Los platos se reparten entre los dos locales
- * de prueba para que se pueda verificar que cada vendedor ve únicamente
- * su propio inventario y sus propias comandas.
+ * Catálogo de la demo: los platos de cada local, con su foto.
+ *
+ * Las fechas de publicación intercalan los locales (el primer plato de cada
+ * uno, después el segundo, y así). Como el catálogo se ordena del más nuevo
+ * al más viejo, la portada muestra variedad desde la primera fila.
  */
 module.exports = {
   async up(queryInterface) {
     const ahora = new Date();
+    await fs.promises.mkdir(CARPETA_PLATOS, { recursive: true });
 
-    const idLaNonna = await queryInterface.rawSelect('Usuarios', {
-      where: { email: 'lanonna@foodiebyte.com' }
-    }, ['id']);
+    for (const [posicionLocal, local] of LOCALES.entries()) {
+      const vendedorId = await queryInterface.rawSelect('Usuarios', { where: { email: local.email } }, ['id']);
+      if (!vendedorId) {
+        throw new Error(`Falta el local ${local.email}. Ejecutá primero el seeder de usuarios.`);
+      }
 
-    const idSaborCriollo = await queryInterface.rawSelect('Usuarios', {
-      where: { email: 'saborcriollo@foodiebyte.com' }
-    }, ['id']);
+      const filas = [];
+      for (const [posicionPlato, plato] of local.platos.entries()) {
+        // Se puede correr más de una vez: los platos que ya existen no se duplican.
+        const existe = await queryInterface.rawSelect('platos', { where: { vendedorId, nombre: plato.nombre } }, ['id']);
+        if (existe) continue;
 
-    if (!idLaNonna || !idSaborCriollo) {
-      throw new Error('Faltan los vendedores de demo. Ejecutá primero el seeder de usuarios iniciales.');
+        // La foto se copia a uploads/ como si el local la hubiera subido: así
+        // se puede reemplazar o borrar desde el panel sin tocar el original.
+        const archivo = archivoSubido(plato.foto);
+        await fs.promises.copyFile(path.join(CARPETA_FOTOS, `${plato.foto}.webp`), path.join(CARPETA_PLATOS, archivo));
+
+        const orden = posicionPlato * LOCALES.length + posicionLocal;
+        const publicado = new Date(ahora.getTime() - (DIAS_DESDE_LA_PUBLICACION * 24 + orden * 3) * HORA);
+
+        filas.push({
+          nombre: plato.nombre,
+          descripcion: plato.descripcion,
+          precio: plato.precio,
+          categoria: plato.categoria,
+          stock: plato.stock,
+          tiempo_prep: plato.tiempo_prep,
+          es_vegano: Boolean(plato.es_vegano),
+          es_sintacc: Boolean(plato.es_sintacc),
+          imagenUrl: `${PREFIJO_URL}${archivo}`,
+          vendedorId,
+          createdAt: publicado,
+          updatedAt: publicado
+        });
+      }
+
+      if (filas.length > 0) {
+        await queryInterface.bulkInsert('platos', filas);
+      }
     }
-
-    const platos = [
-      ['Pizza Margherita', 'Tomate, mozzarella y albahaca fresca.', 1200.00, 'Pizzas', 20, '25-35 min', false, false, idLaNonna],
-      ['Pizza Napolitana', 'Mozzarella, rodajas de tomate y ajo.', 1350.00, 'Pizzas', 18, '25-35 min', false, false, idLaNonna],
-      ['Hamburguesa Foodie', 'Carne vacuna, queso cheddar y panceta ahumada.', 1500.00, 'Hamburguesas', 15, '20-30 min', false, false, idLaNonna],
-      ['Bowl Vegano', 'Arroz integral, palta, tofu marinado, edamame y hummus.', 1100.00, 'Vegano', 12, '15-25 min', true, true, idLaNonna],
-      ['Tiramisú Italiano', 'Postre clásico con mascarpone, café y cacao.', 800.00, 'Postres', 18, '10-15 min', false, false, idLaNonna],
-
-      ['Empanadas Criollas x6', 'Empanadas de carne cortada a cuchillo, con huevo y aceituna.', 950.00, 'Empanadas', 30, '15-20 min', false, false, idSaborCriollo],
-      ['Asado para 2', 'Vacío, chorizo, morcilla y ensalada mixta.', 3200.00, 'Parrilla', 8, '40-50 min', false, true, idSaborCriollo],
-      ['Provoleta a la Parrilla', 'Queso provolone con orégano y aceite de oliva.', 900.00, 'Parrilla', 14, '15-20 min', false, true, idSaborCriollo],
-      ['Sushi Combo 20 piezas', 'Combinado de salmón, Philadelphia y langostino.', 2800.00, 'Sushi', 10, '30-40 min', false, false, idSaborCriollo],
-      ['Flan Casero con Dulce', 'Flan de huevo con dulce de leche y crema.', 750.00, 'Postres', 20, '10-15 min', false, true, idSaborCriollo]
-    ];
-
-    return queryInterface.bulkInsert('platos', platos.map(
-      ([nombre, descripcion, precio, categoria, stock, tiempo_prep, es_vegano, es_sintacc, vendedorId]) => ({
-        nombre, descripcion, precio, categoria, stock, tiempo_prep, es_vegano, es_sintacc, vendedorId,
-        imagenUrl: null,
-        createdAt: ahora,
-        updatedAt: ahora
-      })
-    ));
   },
 
   async down(queryInterface) {
-    return queryInterface.bulkDelete('platos', null, {});
+    const vendedores = await queryInterface.sequelize.query(
+      'SELECT id FROM "Usuarios" WHERE email IN (:emails)',
+      { replacements: { emails: LOCALES.map(local => local.email) }, type: QueryTypes.SELECT }
+    );
+
+    if (vendedores.length > 0) {
+      await queryInterface.bulkDelete('platos', { vendedorId: { [Op.in]: vendedores.map(v => v.id) } });
+    }
+
+    for (const local of LOCALES) {
+      for (const plato of local.platos) {
+        await borrarArchivo(path.join(CARPETA_PLATOS, archivoSubido(plato.foto)));
+      }
+    }
   }
 };
