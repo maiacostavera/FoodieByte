@@ -9,6 +9,9 @@ Proyecto final de carrera — arquitectura full-stack adaptada a PostgreSQL.
 > **¿Retomás el desarrollo?** Empezá por [`PROJECT.md`](PROJECT.md): cuenta en qué
 > estado está el proyecto, qué se cambió y por qué, y qué queda pendiente.
 > Este README es la referencia para instalar y correr.
+>
+> **¿Vas a contribuir?** La forma de trabajar con ramas, commits y pull requests
+> está en [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
@@ -72,7 +75,7 @@ Proyecto final de carrera — arquitectura full-stack adaptada a PostgreSQL.
 
 ### Requisitos
 
-- Node.js 18 o superior
+- Node.js 20.19 o superior (la versión recomendada está en `.nvmrc`)
 - PostgreSQL 14 o superior, en ejecución
 
 ### 1. Backend
@@ -129,8 +132,9 @@ Los foodies se crean desde el formulario de registro de la aplicación.
 | `npm run db:migrate` | Aplica las migraciones pendientes |
 | `npm run db:seed` | Carga los datos de ejemplo |
 | `npm run db:reset` | **Borra** la base y la reconstruye desde cero |
+| `npm run db:test:create` | Crea la base de pruebas (una sola vez) |
 | `npm run migrar:mysql` | Copia los datos de una base MySQL a PostgreSQL |
-| `npm test` | Pruebas de integración de la API |
+| `npm test` | Pruebas de integración contra la base de pruebas |
 
 **client**
 
@@ -146,11 +150,14 @@ Los foodies se crean desde el formulario de registro de la aplicación.
 ## Variables de entorno
 
 El backend no tiene ningún valor sensible escrito en el código. Todo sale del
-`.env`, que **no se versiona**; `.env.example` documenta cada variable.
+`.env`, que **no se versiona**, o de variables de entorno ya definidas (así corre
+en el CI y en servidores en la nube, donde no hay archivo). `.env.example`
+documenta cada variable.
 
 | Variable | Descripción |
 |---|---|
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Conexión a PostgreSQL (el puerto por defecto es `5432`) |
+| `DB_NAME_TEST` | Base que usan las pruebas (por defecto `foodiebyte_test`) |
 | `DB_SSL` | `true` si el servidor exige TLS (Neon, Supabase, Railway); `false` en local |
 | `JWT_SECRET` | Clave de firma de los tokens. Generala con `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
 | `JWT_EXPIRES_IN` | Vigencia del token (por defecto `24h`) |
@@ -319,11 +326,12 @@ Todas las respuestas de error tienen la forma `{ "mensaje": "..." }`.
 
 | Código | Cuándo |
 |---|---|
-| `400` | Datos inválidos: campos faltantes, tipos incorrectos, textos que superan el largo permitido o un id de la URL que no es un entero positivo |
+| `400` | Datos inválidos: campos faltantes, tipos incorrectos, textos que superan el largo permitido, un cuerpo que no es JSON o un id de la URL que no es un entero positivo |
 | `401` | Falta el token, es inválido o expiró |
-| `403` | El rol no alcanza, o el recurso pertenece a otro local |
-| `404` | El recurso no existe |
+| `403` | El rol no alcanza, el recurso pertenece a otro local o el origen no está habilitado por CORS |
+| `404` | El recurso o la ruta no existen |
 | `409` | Conflicto: email ya registrado, stock insuficiente o solicitud de vendedor ya pendiente |
+| `413` | El cuerpo de la solicitud supera el tamaño permitido |
 | `500` | Error inesperado del servidor; el detalle queda solo en el log |
 
 ---
@@ -374,23 +382,34 @@ largo que su columna. Para que eso no se vea como una caída del servidor:
 - `utils/errores.js` traduce cualquier error de datos que igual llegue a la base
   en un 400 o un 409, y deja el 500 solo para fallas reales.
 
+### La aplicación y el arranque están separados
+
+`server/app.js` arma la aplicación Express completa (CORS, rutas y manejo de
+errores) sin ponerla a escuchar. `index.js` la arranca, y las pruebas la
+levantan en otro puerto: así se prueba exactamente lo mismo que corre en
+producción.
+
 ### Configuración por entorno
 
 Ni la clave de firma de los JWT, ni las credenciales de la base, ni la URL de la
-API están escritas en el código. El backend lee todo del `.env` y aborta el
-arranque en producción si falta `JWT_SECRET`.
+API están escritas en el código. El backend lee todo del `.env` o del entorno, y
+aborta el arranque en producción si falta `JWT_SECRET`.
 
 ---
 
 ## Pruebas
 
+Las pruebas corren contra una base **aparte** (`DB_NAME_TEST`, por defecto
+`foodiebyte_test`), así nunca tocan los datos de desarrollo.
+
 ```bash
 cd server
-npm test
+npm run db:test:create    # solo la primera vez
+npm test                  # aplica las migraciones pendientes a la base de pruebas y corre la suite
 ```
 
-Levanta la API contra la base configurada y verifica los escenarios críticos del
-sistema, agrupados en:
+Levantan la misma aplicación que `npm start` (`server/app.js`) y verifican los
+escenarios críticos del sistema, agrupados en:
 
 - **Autenticación** — tokens inválidos, mensajes de login que no revelan qué correos existen, imposibilidad de auto-asignarse el rol `admin` al registrarse.
 - **Pedidos y stock** — descuento correcto, rechazo por falta de stock sin efectos colaterales, dos compras simultáneas del último plato disponible, precios inmunes a manipulación del cliente.
@@ -399,9 +418,13 @@ sistema, agrupados en:
 - **Solicitudes y preguntas** — persistencia real de los datos y control de quién puede responder.
 - **Catálogo público** — acceso sin sesión, búsqueda del lado del servidor que toma `%` y `_` como texto, y precios devueltos como número.
 - **Datos inválidos** — ids no numéricos o fuera de rango, textos demasiado largos, tipos incorrectos y un mismo email registrado dos veces a la vez responden 400 o 409, nunca 500.
+- **Aplicación** — rutas inexistentes, cuerpos que no son JSON y orígenes no habilitados por CORS responden con el código correcto.
 
-Las pruebas crean y eliminan sus propios datos; aun así conviene ejecutarlas
-sobre una base de desarrollo.
+### Integración continua
+
+Cada push a `main` o `develop`, y cada pull request hacia esas ramas, corre en
+GitHub Actions (`.github/workflows/ci.yml`): las pruebas de la API contra un
+PostgreSQL descartable, y el lint y el build del frontend.
 
 ---
 
@@ -409,6 +432,7 @@ sobre una base de desarrollo.
 
 ```
 FoodieByte/
+├── .github/                       CI (GitHub Actions) y plantilla de pull request
 ├── client/
 │   ├── src/
 │   │   ├── api/client.js          Instancia de Axios: URL base, token y manejo de sesión vencida
@@ -421,17 +445,21 @@ FoodieByte/
 │   │   └── App.jsx
 │   └── .env.example
 │
-└── server/
-    ├── config/                    Base de datos, seguridad, categorías y límites de los datos
-    ├── middleware/                Autenticación, control de roles y validación de ids
-    ├── migrations/                Esquema versionado
-    ├── models/                    Modelos de Sequelize
-    ├── pruebas/                   Pruebas de integración
-    ├── scripts/                   Migración puntual de datos desde MySQL
-    ├── routes/                    usuarios · platos · pedidos · admin
-    ├── seeders/                   Datos de ejemplo
-    ├── uploads/platos/            Imágenes subidas por los vendedores
-    ├── utils/errores.js           Traducción de errores de la base a respuestas HTTP
-    ├── .env.example
-    └── index.js
+├── server/
+│   ├── config/                    Base de datos, seguridad, categorías y límites de los datos
+│   ├── middleware/                Autenticación, control de roles y validación de ids
+│   ├── migrations/                Esquema versionado
+│   ├── models/                    Modelos de Sequelize
+│   ├── pruebas/                   Pruebas de integración
+│   ├── scripts/                   Migración puntual de datos desde MySQL
+│   ├── routes/                    usuarios · platos · pedidos · admin
+│   ├── seeders/                   Datos de ejemplo
+│   ├── uploads/platos/            Imágenes subidas por los vendedores
+│   ├── utils/errores.js           Traducción de errores de la base a respuestas HTTP
+│   ├── app.js                     Aplicación Express (la usan index.js y las pruebas)
+│   ├── index.js                   Arranque: conecta la base y escucha
+│   └── .env.example
+│
+├── CONTRIBUTING.md                Ramas, commits y pull requests
+└── PROJECT.md                     Estado del proyecto y traspaso
 ```
