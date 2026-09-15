@@ -7,8 +7,16 @@ const multer = require('multer');
 const { Op } = require('sequelize');
 const { Plato, Usuario, Pregunta } = require('../models');
 const { autenticar, requiereRol } = require('../middleware/auth');
+const { validarIdDeRuta } = require('../middleware/validarId');
 const { ROLES } = require('../config/seguridad');
 const { CATEGORIAS } = require('../config/categorias');
+const { LIMITES } = require('../config/limites');
+const { responderError } = require('../utils/errores');
+
+// Los ids de la URL se validan antes de consultar la base.
+router.param('id', validarIdDeRuta);
+router.param('platoId', validarIdDeRuta);
+router.param('preguntaId', validarIdDeRuta);
 
 const MIMES_PERMITIDOS = {
   'image/jpeg': '.jpg',
@@ -54,14 +62,16 @@ const validarDatosDePlato = (body, { exigirTodos }) => {
   const errores = [];
 
   if (body.nombre !== undefined || exigirTodos) {
-    const nombre = (body.nombre || '').trim();
+    const nombre = String(body.nombre ?? '').trim();
     if (!nombre) errores.push('El nombre del plato es obligatorio.');
+    else if (nombre.length > LIMITES.nombre) errores.push(`El nombre del plato no puede superar los ${LIMITES.nombre} caracteres.`);
     else datos.nombre = nombre;
   }
 
   if (body.precio !== undefined || exigirTodos) {
     const precio = parseFloat(body.precio);
     if (Number.isNaN(precio) || precio <= 0) errores.push('El precio debe ser mayor a 0.');
+    else if (precio > LIMITES.precio) errores.push('El precio supera el máximo permitido.');
     else datos.precio = precio;
   }
 
@@ -79,8 +89,23 @@ const validarDatosDePlato = (body, { exigirTodos }) => {
     else datos.categoria = body.categoria;
   }
 
-  if (body.descripcion !== undefined) datos.descripcion = String(body.descripcion).trim();
-  if (body.tiempo_prep !== undefined) datos.tiempo_prep = String(body.tiempo_prep).trim();
+  if (body.descripcion !== undefined) {
+    const descripcion = String(body.descripcion).trim();
+    if (descripcion.length > LIMITES.descripcion) {
+      errores.push(`La descripción no puede superar los ${LIMITES.descripcion} caracteres.`);
+    } else {
+      datos.descripcion = descripcion;
+    }
+  }
+
+  if (body.tiempo_prep !== undefined) {
+    const tiempoPrep = String(body.tiempo_prep).trim();
+    if (tiempoPrep.length > LIMITES.tiempoPrep) {
+      errores.push(`El tiempo de preparación no puede superar los ${LIMITES.tiempoPrep} caracteres.`);
+    } else {
+      datos.tiempo_prep = tiempoPrep;
+    }
+  }
 
   // El FormData del navegador manda los booleanos como texto.
   if (body.es_vegano !== undefined) datos.es_vegano = body.es_vegano === true || body.es_vegano === 'true';
@@ -89,17 +114,26 @@ const validarDatosDePlato = (body, { exigirTodos }) => {
   return { datos, errores };
 };
 
+/**
+ * En ILIKE, % y _ son comodines. Se escapan para que la búsqueda tome lo que
+ * escribió el usuario como texto literal: buscar "%" no debe traer todo.
+ */
+const escaparComodines = (texto) => texto.replace(/[\\%_]/g, '\\$&');
+
 // LISTA DE CATEGORÍAS (pública) — evita duplicar la lista en el frontend
 router.get('/categorias', (req, res) => res.json(CATEGORIAS));
 
 // CATÁLOGO PÚBLICO (con búsqueda y filtro por categoría del lado del servidor)
 router.get('/', async (req, res) => {
   try {
-    const { busqueda, categoria } = req.query;
+    // Con un parámetro repetido (?busqueda=a&busqueda=b) Express entrega un
+    // array en lugar de un texto: se ignora en vez de romper la consulta.
+    const busqueda = typeof req.query.busqueda === 'string' ? req.query.busqueda.trim() : '';
+    const categoria = typeof req.query.categoria === 'string' ? req.query.categoria : '';
     const where = {};
 
-    if (busqueda && busqueda.trim() !== '') {
-      const texto = `%${busqueda.trim()}%`;
+    if (busqueda !== '') {
+      const texto = `%${escaparComodines(busqueda)}%`;
       // iLike (ILIKE de PostgreSQL) ignora mayúsculas y minúsculas. Con LIKE
       // a secas, buscar "pizza" no encontraría "Pizza Margherita": en MySQL
       // funcionaba por la colación por defecto, en PostgreSQL no.
@@ -122,8 +156,7 @@ router.get('/', async (req, res) => {
 
     res.json(platos);
   } catch (err) {
-    console.error('Error al obtener el catálogo:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener los platos.' });
+    responderError(res, err, { contexto: 'Error al obtener el catálogo', mensaje: 'Error interno al obtener los platos.' });
   }
 });
 
@@ -141,8 +174,7 @@ router.get('/mis-platos', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), 
 
     res.json(platos);
   } catch (err) {
-    console.error('Error al obtener el inventario:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener el inventario.' });
+    responderError(res, err, { contexto: 'Error al obtener el inventario', mensaje: 'Error interno al obtener el inventario.' });
   }
 });
 
@@ -173,8 +205,7 @@ router.post('/', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), (req, res
 
       res.status(201).json({ mensaje: 'Plato creado con éxito.', plato: nuevoPlato });
     } catch (err) {
-      console.error('Error al crear el plato:', err);
-      res.status(500).json({ mensaje: 'Error interno al procesar el alta.' });
+      responderError(res, err, { contexto: 'Error al crear el plato', mensaje: 'Error interno al procesar el alta.' });
     }
   });
 });
@@ -204,8 +235,7 @@ router.put('/:id', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), (req, r
       await plato.update(datos);
       res.json({ mensaje: 'Plato actualizado.', plato });
     } catch (err) {
-      console.error('Error al actualizar el plato:', err);
-      res.status(500).json({ mensaje: 'Error interno al actualizar el plato.' });
+      responderError(res, err, { contexto: 'Error al actualizar el plato', mensaje: 'Error interno al actualizar el plato.' });
     }
   });
 });
@@ -228,8 +258,7 @@ router.put('/:id/stock', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), a
     await plato.update({ stock });
     res.json({ mensaje: 'Stock actualizado.', plato });
   } catch (err) {
-    console.error('Error al actualizar el stock:', err);
-    res.status(500).json({ mensaje: 'Error interno al actualizar el stock.' });
+    responderError(res, err, { contexto: 'Error al actualizar el stock', mensaje: 'Error interno al actualizar el stock.' });
   }
 });
 
@@ -246,8 +275,7 @@ router.delete('/:id', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), asyn
     await plato.destroy();
     res.json({ mensaje: 'Plato eliminado exitosamente.' });
   } catch (err) {
-    console.error('Error al eliminar el plato:', err);
-    res.status(500).json({ mensaje: 'Error interno al eliminar el plato.' });
+    responderError(res, err, { contexto: 'Error al eliminar el plato', mensaje: 'Error interno al eliminar el plato.' });
   }
 });
 
@@ -267,8 +295,7 @@ router.get('/:id/preguntas', async (req, res) => {
     });
     res.json(preguntas);
   } catch (err) {
-    console.error('Error al obtener las preguntas:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener las preguntas.' });
+    responderError(res, err, { contexto: 'Error al obtener las preguntas', mensaje: 'Error interno al obtener las preguntas.' });
   }
 });
 
@@ -295,8 +322,7 @@ router.post('/:id/preguntas', autenticar, requiereRol(ROLES.FOODIE), async (req,
     const pregunta = await Pregunta.findByPk(creada.id, { include: [incluirAutor] });
     res.status(201).json({ mensaje: 'Consulta enviada. El vendedor te responderá pronto.', pregunta });
   } catch (err) {
-    console.error('Error al publicar la pregunta:', err);
-    res.status(500).json({ mensaje: 'Error interno al enviar la consulta.' });
+    responderError(res, err, { contexto: 'Error al publicar la pregunta', mensaje: 'Error interno al enviar la consulta.' });
   }
 });
 
@@ -323,8 +349,7 @@ router.put('/:platoId/preguntas/:preguntaId', autenticar, requiereRol(ROLES.VEND
     const actualizada = await Pregunta.findByPk(pregunta.id, { include: [incluirAutor] });
     res.json({ mensaje: 'Respuesta publicada.', pregunta: actualizada });
   } catch (err) {
-    console.error('Error al responder la pregunta:', err);
-    res.status(500).json({ mensaje: 'Error interno al responder la consulta.' });
+    responderError(res, err, { contexto: 'Error al responder la pregunta', mensaje: 'Error interno al responder la consulta.' });
   }
 });
 

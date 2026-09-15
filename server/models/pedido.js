@@ -17,8 +17,9 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
       defaultValue: 0,
-      // DECIMAL vuelve como string desde MySQL; lo normalizamos a número
-      // para que el front no tenga que parsear en cada pantalla.
+      // El driver de PostgreSQL devuelve DECIMAL como texto para no perder
+      // precisión; lo normalizamos a número para que el front no tenga que
+      // parsear en cada pantalla.
       get() {
         const valor = this.getDataValue('total');
         return valor === null ? null : Number(valor);

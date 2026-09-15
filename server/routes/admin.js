@@ -5,10 +5,15 @@ const router = express.Router();
 const { fn, col } = require('sequelize');
 const { Usuario, Plato, Pedido, PedidoItem } = require('../models');
 const { autenticar, requiereRol } = require('../middleware/auth');
+const { validarIdDeRuta } = require('../middleware/validarId');
 const { ROLES, COMISION_PLATAFORMA } = require('../config/seguridad');
+const { responderError } = require('../utils/errores');
 
 // Todas las rutas de este router son exclusivas del administrador.
 router.use(autenticar, requiereRol(ROLES.ADMIN));
+
+// Los ids de la URL se validan antes de consultar la base.
+router.param('id', validarIdDeRuta);
 
 const redondear = (valor) => Number(Number(valor || 0).toFixed(2));
 
@@ -28,8 +33,7 @@ router.get('/usuarios', async (req, res) => {
     });
     res.json(usuarios);
   } catch (err) {
-    console.error('Error al obtener los usuarios:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener los usuarios.' });
+    responderError(res, err, { contexto: 'Error al obtener los usuarios', mensaje: 'Error interno al obtener los usuarios.' });
   }
 });
 
@@ -61,8 +65,7 @@ router.put('/usuarios/:id/rol', async (req, res) => {
       usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: nuevoRol }
     });
   } catch (err) {
-    console.error('Error al cambiar el rol:', err);
-    res.status(500).json({ mensaje: 'Error interno al cambiar el rol.' });
+    responderError(res, err, { contexto: 'Error al cambiar el rol', mensaje: 'Error interno al cambiar el rol.' });
   }
 });
 
@@ -74,8 +77,7 @@ router.put('/usuarios/:id/rechazar-vendedor', async (req, res) => {
     await usuario.update({ solicitud_vendedor: false });
     res.json({ mensaje: 'Solicitud rechazada exitosamente.' });
   } catch (err) {
-    console.error('Error al rechazar la solicitud:', err);
-    res.status(500).json({ mensaje: 'Error interno al procesar el rechazo.' });
+    responderError(res, err, { contexto: 'Error al rechazar la solicitud', mensaje: 'Error interno al procesar el rechazo.' });
   }
 });
 
@@ -91,8 +93,7 @@ router.delete('/usuarios/:id', async (req, res) => {
     await usuario.destroy();
     res.json({ mensaje: 'Usuario eliminado exitosamente.' });
   } catch (err) {
-    console.error('Error al eliminar el usuario:', err);
-    res.status(500).json({ mensaje: 'Error interno al eliminar el usuario.' });
+    responderError(res, err, { contexto: 'Error al eliminar el usuario', mensaje: 'Error interno al eliminar el usuario.' });
   }
 });
 
@@ -107,8 +108,7 @@ router.get('/platos', async (req, res) => {
     });
     res.json(platos);
   } catch (err) {
-    console.error('Error al obtener los platos:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener los platos.' });
+    responderError(res, err, { contexto: 'Error al obtener los platos', mensaje: 'Error interno al obtener los platos.' });
   }
 });
 
@@ -120,8 +120,7 @@ router.delete('/platos/:id', async (req, res) => {
     await plato.destroy();
     res.json({ mensaje: 'Plato eliminado exitosamente.' });
   } catch (err) {
-    console.error('Error al eliminar el plato:', err);
-    res.status(500).json({ mensaje: 'Error interno al eliminar el plato.' });
+    responderError(res, err, { contexto: 'Error al eliminar el plato', mensaje: 'Error interno al eliminar el plato.' });
   }
 });
 
@@ -143,8 +142,7 @@ router.get('/pedidos', async (req, res) => {
     });
     res.json(pedidos);
   } catch (err) {
-    console.error('Error al obtener los pedidos:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener los pedidos.' });
+    responderError(res, err, { contexto: 'Error al obtener los pedidos', mensaje: 'Error interno al obtener los pedidos.' });
   }
 });
 
@@ -184,8 +182,7 @@ router.get('/estadisticas', async (req, res) => {
       gananciasPlataforma: redondear(volumenVentas * COMISION_PLATAFORMA)
     });
   } catch (err) {
-    console.error('Error al obtener las estadísticas:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener las estadísticas.' });
+    responderError(res, err, { contexto: 'Error al obtener las estadísticas', mensaje: 'Error interno al obtener las estadísticas.' });
   }
 });
 
@@ -237,8 +234,7 @@ router.get('/comisiones-vendedores', async (req, res) => {
 
     res.json(liquidacion);
   } catch (err) {
-    console.error('Error al calcular las comisiones:', err);
-    res.status(500).json({ mensaje: 'Error interno al calcular las comisiones.' });
+    responderError(res, err, { contexto: 'Error al calcular las comisiones', mensaje: 'Error interno al calcular las comisiones.' });
   }
 });
 

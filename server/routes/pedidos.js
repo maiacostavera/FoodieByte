@@ -5,9 +5,15 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { Pedido, PedidoItem, Plato, Usuario, sequelize } = require('../models');
 const { autenticar, requiereRol } = require('../middleware/auth');
+const { validarIdDeRuta } = require('../middleware/validarId');
 const { ROLES } = require('../config/seguridad');
+const { MAX_INTEGER } = require('../config/limites');
+const { responderError } = require('../utils/errores');
 
 const ESTADOS = Pedido.ESTADOS;
+
+// Los ids de la URL se validan antes de consultar la base.
+router.param('id', validarIdDeRuta);
 
 const incluirDetalle = [
   {
@@ -50,10 +56,11 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
   // para no descontar stock dos veces ni bloquear la misma fila dos veces.
   const consolidados = new Map();
   for (const item of productos) {
-    const id = Number(item.id);
-    const cantidad = parseInt(item.cantidad, 10);
+    const id = Number(item?.id);
+    const cantidad = parseInt(item?.cantidad, 10);
 
-    if (!Number.isInteger(id) || id <= 0) {
+    // Un id por encima del máximo de INTEGER haría fallar la consulta en PostgreSQL.
+    if (!Number.isInteger(id) || id <= 0 || id > MAX_INTEGER) {
       return res.status(400).json({ mensaje: 'El carrito contiene un producto inválido.' });
     }
     if (!Number.isInteger(cantidad) || cantidad <= 0) {
@@ -122,8 +129,10 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
     res.status(201).json({ mensaje: '¡Pedido confirmado con éxito! 🛍️', pedido });
   } catch (err) {
     await t.rollback();
-    console.error('Error al procesar la transacción del pedido:', err);
-    res.status(500).json({ mensaje: 'Error interno al procesar el pedido.' });
+    responderError(res, err, {
+      contexto: 'Error al procesar la transacción del pedido',
+      mensaje: 'Error interno al procesar el pedido.'
+    });
   }
 });
 
@@ -139,8 +148,10 @@ router.get('/mis-pedidos', autenticar, async (req, res) => {
     });
     res.json(pedidos);
   } catch (err) {
-    console.error('Error al obtener los pedidos del usuario:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener los pedidos.' });
+    responderError(res, err, {
+      contexto: 'Error al obtener los pedidos del usuario',
+      mensaje: 'Error interno al obtener los pedidos.'
+    });
   }
 });
 
@@ -178,8 +189,7 @@ router.get('/comandas', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), as
 
     res.json(respuesta);
   } catch (err) {
-    console.error('Error al obtener las comandas:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener las comandas.' });
+    responderError(res, err, { contexto: 'Error al obtener las comandas', mensaje: 'Error interno al obtener las comandas.' });
   }
 });
 
@@ -226,8 +236,10 @@ router.put('/:id/estado', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), 
     });
   } catch (err) {
     await t.rollback();
-    console.error('Error al actualizar el estado del pedido:', err);
-    res.status(500).json({ mensaje: 'Error interno al actualizar el estado.' });
+    responderError(res, err, {
+      contexto: 'Error al actualizar el estado del pedido',
+      mensaje: 'Error interno al actualizar el estado.'
+    });
   }
 });
 
@@ -272,8 +284,10 @@ router.get('/estadisticas', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN)
       platosEnAlerta
     });
   } catch (err) {
-    console.error('Error al obtener las estadísticas del vendedor:', err);
-    res.status(500).json({ mensaje: 'Error interno al obtener las estadísticas.' });
+    responderError(res, err, {
+      contexto: 'Error al obtener las estadísticas del vendedor',
+      mensaje: 'Error interno al obtener las estadísticas.'
+    });
   }
 });
 

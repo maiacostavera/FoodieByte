@@ -533,6 +533,97 @@ async function ejecutar() {
     assert.ok(datos.length >= 3, 'La búsqueda no encontró los platos de prueba');
     assert.ok(datos.every(p => p.nombre.includes(SUFIJO)));
   });
+
+  await prueba('La búsqueda toma % y _ como texto, no como comodines', async () => {
+    const catalogo = await pedir('GET', '/api/platos');
+    const conComodin = await pedir('GET', `/api/platos?busqueda=${encodeURIComponent('%')}`);
+    assert.strictEqual(conComodin.estado, 200);
+    assert.ok(conComodin.datos.length < catalogo.datos.length, 'El "%" se usó como comodín y devolvió todo el catálogo');
+  });
+
+  await prueba('Un parámetro de búsqueda repetido no rompe el catálogo', async () => {
+    const { estado } = await pedir('GET', '/api/platos?busqueda=pizza&busqueda=sushi');
+    assert.strictEqual(estado, 200);
+  });
+
+  await prueba('El precio de los platos llega como número', async () => {
+    const { datos } = await pedir('GET', `/api/platos?busqueda=${encodeURIComponent(SUFIJO)}`);
+    assert.ok(datos.length > 0);
+    assert.ok(datos.every(p => typeof p.precio === 'number'), 'El precio llegó como texto');
+  });
+
+  // -------------------------------------------------------------------------
+  seccion('DATOS INVÁLIDOS (400 en lugar de 500)');
+
+  await prueba('Un id no numérico en la URL responde 400', async () => {
+    const publica = await pedir('GET', '/api/platos/abc/preguntas');
+    const protegida = await pedir('PUT', '/api/pedidos/abc/estado', {
+      token: local1.token,
+      body: { nuevoEstado: 'Enviado' }
+    });
+    const deAdmin = await pedir('DELETE', '/api/admin/platos/1e3', { token: admin.token });
+    assert.strictEqual(publica.estado, 400);
+    assert.strictEqual(protegida.estado, 400);
+    assert.strictEqual(deAdmin.estado, 400);
+  });
+
+  await prueba('Un id fuera del rango de INTEGER responde 400', async () => {
+    const { estado } = await pedir('GET', '/api/platos/99999999999/preguntas');
+    assert.strictEqual(estado, 400);
+  });
+
+  await prueba('Un nombre demasiado largo en el registro responde 400', async () => {
+    const email = `largo-${SUFIJO}@pruebas.local`;
+    const { estado } = await pedir('POST', '/api/usuarios/register', {
+      body: { nombre: 'x'.repeat(300), email, password: PASSWORD }
+    });
+    const colado = await Usuario.findOne({ where: { email } });
+    if (colado) creados.usuarios.push(colado.id);
+    assert.strictEqual(estado, 400);
+  });
+
+  await prueba('Campos con tipos inválidos en el registro responden 400', async () => {
+    const { estado } = await pedir('POST', '/api/usuarios/register', {
+      body: { nombre: 12345, email: { falso: true }, password: PASSWORD }
+    });
+    assert.strictEqual(estado, 400);
+  });
+
+  await prueba('Un texto demasiado largo en la solicitud de vendedor responde 400', async () => {
+    const { estado } = await pedir('POST', '/api/usuarios/solicitar-vendedor', {
+      token: cliente2.token,
+      body: {
+        nombreLocal: 'Local de prueba',
+        descripcionProductos: 'Comida casera',
+        telefono: '1123456789',
+        direccion: 'x'.repeat(300),
+        categoria: 'Pizzas'
+      }
+    });
+    assert.strictEqual(estado, 400);
+    await cliente2.usuario.reload();
+    assert.strictEqual(cliente2.usuario.solicitud_vendedor, false, 'Se guardó una solicitud inválida');
+  });
+
+  await prueba('Un plato con nombre demasiado largo responde 400', async () => {
+    const { estado } = await pedir('POST', '/api/platos', {
+      token: local1.token,
+      body: { nombre: 'x'.repeat(300), precio: 100, stock: 1, categoria: 'Pizzas' }
+    });
+    assert.strictEqual(estado, 400);
+  });
+
+  await prueba('El mismo email registrado dos veces a la vez: un alta y un 409', async () => {
+    const email = `doble-${SUFIJO}@pruebas.local`;
+    const alta = { body: { nombre: 'Alta doble', email, password: PASSWORD } };
+    const respuestas = await Promise.all([
+      pedir('POST', '/api/usuarios/register', alta),
+      pedir('POST', '/api/usuarios/register', alta)
+    ]);
+    const creado = await Usuario.findOne({ where: { email } });
+    if (creado) creados.usuarios.push(creado.id);
+    assert.deepStrictEqual(respuestas.map(r => r.estado).sort(), [201, 409]);
+  });
 }
 
 // --- arranque ---------------------------------------------------------------
