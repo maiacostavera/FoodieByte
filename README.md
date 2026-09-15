@@ -103,21 +103,35 @@ cp .env.example .env      # VITE_API_URL apunta al backend
 npm run dev               # http://localhost:5173
 ```
 
-### Usuarios de ejemplo
+### Datos de demostración
 
-Los crea `npm run db:setup` con las contraseñas que definas en el `.env`
-(`ADMIN_PASSWORD` y `DEMO_PASSWORD`):
+`npm run db:setup` carga una demo completa, pensada para mostrar la plataforma
+funcionando como si estuviera en uso:
 
-| Rol | Email |
-|---|---|
-| Administrador | `admin@foodiebyte.com` |
-| Vendedor | `lanonna@foodiebyte.com` |
-| Vendedor | `saborcriollo@foodiebyte.com` |
+- 7 locales con 45 platos, cada uno con su foto, precios en pesos y stock
+  (algunos en alerta y uno agotado).
+- 8 clientes con seis semanas de pedidos: la mayoría despachados, algunos
+  rechazados, pedidos con varios locales y comandas pendientes de las últimas horas.
+- Consultas sobre los platos, respondidas y sin responder.
+- Dos solicitudes de alta de local esperando la aprobación del administrador.
+- Una cuenta desactivada, cuyos pedidos siguen contando en las liquidaciones.
 
-Los foodies se crean desde el formulario de registro de la aplicación.
+Las cuentas para entrar:
 
-> Hay dos locales de ejemplo a propósito: permiten comprobar que cada vendedor
-> ve únicamente su inventario y sus comandas.
+| Rol | Email | Contraseña |
+|---|---|---|
+| Administrador | `admin@foodiebyte.com` | `admin1234` |
+| Vendedor | `lanonna@foodiebyte.com` | `demo1234` |
+| Foodie | `lucia@foodiebyte.com` | `demo1234` |
+
+Los otros locales (`saborcriollo@`, `barrioburger@`, `sakura@`, `verderaiz@`,
+`donarosa@` y `dulcetentacion@foodiebyte.com`) también entran con `demo1234`.
+Las contraseñas salen de `ADMIN_PASSWORD` y `DEMO_PASSWORD` en el `.env`.
+
+Todo el contenido está en [`server/seeders/datos/demo.js`](server/seeders/datos/demo.js):
+para cambiar un precio o sumar un plato, se edita ese archivo y se recarga con
+`npm run db:reset`. Las fotos son de Unsplash; los créditos están en
+[`server/seeders/fotos/CREDITOS.md`](server/seeders/fotos/CREDITOS.md).
 
 ### Comandos disponibles
 
@@ -164,7 +178,8 @@ documenta cada variable.
 | `PORT` | Puerto de la API (por defecto `3000`) |
 | `CORS_ORIGIN` | Origen del frontend habilitado; admite varios separados por coma |
 | `COMISION_PLATAFORMA` | Comisión sobre las ventas concretadas (`0.05` = 5 %) |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Credenciales del administrador inicial |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Credenciales del administrador que crean los seeders |
+| `DEMO_PASSWORD` | Contraseña de las demás cuentas de la demo (locales y clientes) |
 | `MYSQL_*` | Solo para la migración puntual desde MySQL; se pueden borrar después |
 
 En el cliente, `VITE_API_URL` define la URL de la API.
@@ -516,7 +531,7 @@ FoodieByte/
 │   ├── pruebas/                   Pruebas de integración
 │   ├── scripts/                   Migración puntual de datos desde MySQL
 │   ├── routes/                    usuarios · platos · pedidos · admin
-│   ├── seeders/                   Datos de ejemplo
+│   ├── seeders/                   Datos de demostración (contenido en datos/, fotos en fotos/)
 │   ├── uploads/platos/            Imágenes subidas por los vendedores
 │   ├── utils/                     Traducción de errores de la base y manejo de imágenes subidas
 │   ├── app.js                     Aplicación Express (la usan index.js y las pruebas)
