@@ -38,14 +38,18 @@ const incluirDetalle = [
 
 /**
  * El estado del pedido se deriva del estado de sus líneas:
- * queda Enviado solo si todos los locales despacharon su parte,
- * Rechazado si todos la rechazaron, y Pendiente mientras falte alguno.
+ * - Pendiente mientras algún local no haya respondido por su parte.
+ * - Rechazado si todos los locales la rechazaron.
+ * - Enviado en cuanto no queda nada pendiente y al menos un local despachó.
+ *
+ * Antes, un pedido con una línea enviada y otra rechazada quedaba Pendiente
+ * para siempre, aunque ningún local tuviera ya nada que hacer. Cada línea
+ * conserva su propio estado, así que el cliente sigue viendo qué se rechazó.
  */
 const calcularEstadoDelPedido = (items) => {
-  if (items.length === 0) return 'Pendiente';
-  if (items.every(i => i.estado === 'Enviado')) return 'Enviado';
+  if (items.length === 0 || items.some(i => i.estado === 'Pendiente')) return 'Pendiente';
   if (items.every(i => i.estado === 'Rechazado')) return 'Rechazado';
-  return 'Pendiente';
+  return 'Enviado';
 };
 
 const sincronizarEstadoDelPedido = async (pedidoId, transaction = null) => {

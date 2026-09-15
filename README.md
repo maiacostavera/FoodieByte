@@ -382,8 +382,10 @@ puede vivir en el pedido: vive en `PedidoItems`, donde cada fila guarda su
 `vendedorId` y su propio `estado`.
 
 - Cada local recibe del servidor solo sus líneas, y solo puede cambiar el estado de esas.
-- El estado general del pedido se **deriva**: queda `Enviado` cuando todos los
-  locales despacharon, `Rechazado` si todos rechazaron, y `Pendiente` mientras falte alguno.
+- El estado general del pedido se **deriva**: queda `Pendiente` mientras algún
+  local no haya respondido, `Rechazado` si todos rechazaron, y `Enviado` cuando no
+  queda nada pendiente y al menos un local despachó. Cada línea conserva su propio
+  estado, así que el cliente ve qué parte se rechazó.
 - Las comisiones se calculan sobre las líneas efectivamente despachadas.
 
 ### Los importes los decide el servidor

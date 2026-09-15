@@ -289,8 +289,9 @@ estado**.
 
 Con eso, un carrito que mezcla dos locales funciona bien: cada uno recibe solo
 sus líneas, solo puede cambiar el estado de esas, y el estado general del pedido
-se **deriva** (queda `Enviado` cuando todos despacharon, `Rechazado` si todos
-rechazaron, `Pendiente` mientras falte alguno).
+se **deriva** (`Pendiente` mientras algún local no respondió, `Rechazado` si
+todos rechazaron y `Enviado` cuando no queda nada pendiente y al menos uno
+despachó; las líneas rechazadas conservan su estado).
 
 ### Funcionalidades que el frontend llamaba y no existían
 
