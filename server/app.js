@@ -4,6 +4,7 @@ require('dotenv').config({ quiet: true });
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 
@@ -11,6 +12,7 @@ const platosRouter = require('./routes/platos');
 const usuariosRouter = require('./routes/usuarios');
 const pedidosRouter = require('./routes/pedidos');
 const adminRouter = require('./routes/admin');
+const { limitarLogin, limitarRegistro } = require('./middleware/limitarIntentos');
 
 /**
  * Aplicación Express lista pero sin escuchar en ningún puerto. index.js la
@@ -19,6 +21,14 @@ const adminRouter = require('./routes/admin');
  * y manejo de errores incluidos.
  */
 const app = express();
+
+// Encabezados de seguridad estándar (nosniff, CSP, anti-clickjacking, etc.).
+app.use(helmet({
+  // Las imágenes de /uploads las pide el frontend desde otro origen
+  // (localhost:5173 en desarrollo): con la política por defecto,
+  // same-origin, el navegador las bloquearía.
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
 // Solo se aceptan pedidos del frontend declarado en el .env, no de cualquier origen.
 const origenesPermitidos = (process.env.CORS_ORIGIN || 'http://localhost:5173')
@@ -48,6 +58,11 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Chequeo de salud, útil para verificar que la API está levantada.
 app.get('/api/health', (req, res) => res.json({ estado: 'ok', hora: new Date().toISOString() }));
+
+// Límites contra la fuerza bruta: van después de express.json porque el del
+// login necesita leer el correo del cuerpo.
+app.use('/api/usuarios/login', limitarLogin);
+app.use('/api/usuarios/register', limitarRegistro);
 
 app.use('/api/platos', platosRouter);
 app.use('/api/usuarios', usuariosRouter);

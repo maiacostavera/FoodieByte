@@ -37,7 +37,7 @@ Proyecto final de carrera — arquitectura full-stack adaptada a PostgreSQL.
 | Frontend | React 19 (hooks + Context API), Axios, Vite |
 | Backend | Node.js, Express 5 |
 | Base de datos | PostgreSQL 14+, gestionada con el ORM Sequelize |
-| Seguridad | JSON Web Tokens (JWT) y hashing de contraseñas con bcrypt |
+| Seguridad | JSON Web Tokens (JWT), bcrypt, helmet y límite de intentos con express-rate-limit |
 | Archivos | Multer para la carga de imágenes de los platos |
 
 ---
@@ -275,8 +275,8 @@ Base: `http://localhost:3000/api`
 
 | Método | Ruta | Acceso |
 |---|---|---|
-| `POST` | `/usuarios/register` | Público |
-| `POST` | `/usuarios/login` | Público |
+| `POST` | `/usuarios/register` | Público (hasta 20 cuentas por hora por conexión) |
+| `POST` | `/usuarios/login` | Público (10 intentos fallidos por correo cada 15 minutos) |
 | `GET` | `/usuarios/perfil` | Autenticado |
 | `POST` | `/usuarios/solicitar-vendedor` | Autenticado |
 
@@ -328,12 +328,13 @@ Todas las respuestas de error tienen la forma `{ "mensaje": "..." }`.
 
 | Código | Cuándo |
 |---|---|
-| `400` | Datos inválidos: campos faltantes, tipos incorrectos, textos que superan el largo permitido, un cuerpo que no es JSON o un id de la URL que no es un entero positivo |
+| `400` | Datos inválidos: campos faltantes, tipos incorrectos, textos que superan el largo permitido, un cuerpo que no es JSON, una imagen cuyo contenido no es JPEG, PNG ni WebP, o un id de la URL que no es un entero positivo |
 | `401` | Falta el token, es inválido o expiró, o el usuario ya no existe, fue desactivado o cambió de rol desde que inició sesión |
 | `403` | El rol no alcanza, el recurso pertenece a otro local, la cuenta está desactivada (al iniciar sesión) o el origen no está habilitado por CORS |
 | `404` | El recurso o la ruta no existen, o el plato ya no está a la venta |
 | `409` | Conflicto: email ya registrado, stock insuficiente, solicitud de vendedor ya pendiente o un pedido que ya tiene estado final |
 | `413` | El cuerpo de la solicitud supera el tamaño permitido |
+| `429` | Demasiados intentos: logins fallidos repetidos para un mismo correo, o demasiadas cuentas creadas desde una misma conexión |
 | `500` | Error inesperado del servidor; el detalle queda solo en el log |
 
 ---
@@ -354,6 +355,25 @@ consulta, un vendedor al que el administrador le quitaba el rol seguía
 publicando platos hasta que el token vencía, 24 horas después. Si el usuario ya
 no existe, está desactivado o su rol cambió, la API responde 401 y el frontend
 cierra la sesión mostrando el motivo.
+
+### Protección básica de la API
+
+- **Encabezados de seguridad** con `helmet`: `nosniff`, Content-Security-Policy y
+  protección contra *clickjacking*, entre otros. La política de recursos entre
+  orígenes se abre a `cross-origin` para que el frontend pueda mostrar las
+  imágenes de `/uploads` desde otro puerto.
+- **Límite de intentos** (`middleware/limitarIntentos.js`): diez logins fallidos
+  para un mismo correo desde la misma IP bloquean ese correo durante 15 minutos
+  con un 429, sin afectar a los demás. Cada conexión puede crear hasta 20 cuentas
+  por hora. Los valores están en `config/seguridad.js`.
+- **Imágenes verificadas por su contenido**: el tipo que declara el navegador se
+  puede falsificar, así que se revisan los primeros bytes del archivo. Si el alta
+  o la edición de un plato falla, la imagen recién subida se borra; al reemplazar
+  la foto o eliminar el plato, el modelo `Plato` borra el archivo anterior.
+
+Los contadores de intentos viven en la memoria del proceso: si la API se
+reinicia vuelven a cero, y con varias instancias habría que llevarlos a un
+almacenamiento compartido, por ejemplo Redis.
 
 ### Multitenencia por línea de pedido
 
@@ -453,6 +473,7 @@ escenarios críticos del sistema, agrupados en:
 - **Autenticación** — tokens inválidos, mensajes de login que no revelan qué correos existen, imposibilidad de auto-asignarse el rol `admin` al registrarse.
 - **Permisos vigentes** — un token deja de servir cuando el usuario se elimina o cambia de rol, y al volver a iniciar sesión rige el rol nuevo.
 - **Cuentas desactivadas** — pierden el acceso sin revelar que existen, conservan sus pedidos y liquidaciones, sus platos salen del catálogo y vuelven al reactivarlas, y los usuarios ya no se pueden borrar desde la API.
+- **Seguridad de la API** — encabezados de seguridad, bloqueo por intentos fallidos de login que no afecta a otros correos, imágenes falsas rechazadas, y ningún archivo huérfano cuando falla un alta, se reemplaza una foto o se elimina un plato.
 - **Pedidos y stock** — descuento correcto, rechazo por falta de stock sin efectos colaterales, dos compras simultáneas del último plato disponible, precios inmunes a manipulación del cliente.
 - **Estados finales** — al rechazar vuelve el stock (sin superar el máximo), Enviado y Rechazado no se pueden revertir, y dos locales despachando a la vez dejan el pedido en Enviado.
 - **Aislamiento entre locales** — un cliente no lee pedidos ajenos, un local no ve ni modifica las comandas ni los platos de otro, y en un pedido mixto cada local gestiona solo su parte.
@@ -489,7 +510,7 @@ FoodieByte/
 │
 ├── server/
 │   ├── config/                    Base de datos, seguridad, categorías y límites de los datos
-│   ├── middleware/                Autenticación, control de roles y validación de ids
+│   ├── middleware/                Autenticación, roles, validación de ids y límite de intentos
 │   ├── migrations/                Esquema versionado
 │   ├── models/                    Modelos de Sequelize
 │   ├── pruebas/                   Pruebas de integración
@@ -497,7 +518,7 @@ FoodieByte/
 │   ├── routes/                    usuarios · platos · pedidos · admin
 │   ├── seeders/                   Datos de ejemplo
 │   ├── uploads/platos/            Imágenes subidas por los vendedores
-│   ├── utils/errores.js           Traducción de errores de la base a respuestas HTTP
+│   ├── utils/                     Traducción de errores de la base y manejo de imágenes subidas
 │   ├── app.js                     Aplicación Express (la usan index.js y las pruebas)
 │   ├── index.js                   Arranque: conecta la base y escucha
 │   └── .env.example
