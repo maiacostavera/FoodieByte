@@ -1,11 +1,12 @@
 # FoodieByte · Estado del proyecto y traspaso
 
 Documento de traspaso para quien retome el desarrollo.
-Última actualización: commit `15dbb12`, rama `main`.
+Última actualización: segunda ronda de mejoras (pull requests #1 a #9 hacia `develop`).
 
 Para instalar y correr el proyecto, el documento de referencia es
-[`README.md`](README.md). Este archivo cuenta **en qué estado está**, **qué se
-cambió y por qué**, y **qué queda pendiente**.
+[`README.md`](README.md). La forma de trabajar con ramas, commits y pull requests
+está en [`CONTRIBUTING.md`](CONTRIBUTING.md). Este archivo cuenta **en qué estado
+está**, **qué se cambió y por qué**, y **qué queda pendiente**.
 
 ---
 
@@ -15,26 +16,44 @@ FoodieByte es una plataforma de gestión gastronómica (proyecto final de carrer
 con tres roles: foodie, vendedor y administrador. Stack: React 19 + Vite en el
 frontend, Node/Express + Sequelize en el backend, **PostgreSQL** en la base.
 
-El código está terminado y verificado. **Falta un único paso operativo: migrar
-los datos del MySQL original a PostgreSQL.** El procedimiento completo, incluido
-el caso en que las dos bases estén en máquinas distintas, está en la sección
-siguiente.
+Hubo dos rondas de trabajo. La primera migró el proyecto a PostgreSQL y corrigió
+seguridad y multitenencia: está en `main`. La segunda hizo una revisión completa y
+dejó **nueve pull requests encadenados hacia `develop`**, pendientes de revisión.
 
 | | Estado |
 |---|---|
-| Código en `main` | ✅ Todo pusheado y mergeado, árbol limpio |
-| Pruebas de integración | ✅ 36/36 contra PostgreSQL real |
-| ESLint del frontend | ✅ 0 errores |
-| Build de producción | ✅ Compila |
-| Migración de los datos a PostgreSQL | ⚠️ **Pendiente** — ver la sección siguiente |
+| Primera ronda: migración a PostgreSQL | ✅ En `main` |
+| Segunda ronda: PRs #1 a #9 | ⏳ Abiertos hacia `develop`, se mergean **en orden** |
+| Pruebas de integración | ✅ 73 escenarios contra PostgreSQL real, en una base aparte |
+| Integración continua | ✅ GitHub Actions en cada pull request hacia `develop` y `main` |
+| ESLint del frontend y build | ✅ 0 errores, compila |
+| Migración de los datos reales a PostgreSQL | ⚠️ **Pendiente** — ver más abajo |
 
 ---
 
-# ⚠️ TAREA PENDIENTE — leer antes de cualquier otra cosa
+## Qué hacer primero
 
-**Hay exactamente una tarea sin terminar: migrar los datos de MySQL a
-PostgreSQL.** El código está listo y verificado; esto es un paso operativo que
-no se pudo ejecutar porque depende de las bases locales de la dueña.
+1. **Mergear los PRs #1 → #2 → … → #9 en ese orden**, todos con *Create a merge
+   commit* (sin squash): cada rama sale de la anterior.
+2. Después de mergear, en `server/`:
+
+   ```bash
+   npm install              # el PR #7 agrega helmet y express-rate-limit
+   npm run db:migrate       # el PR #6 agrega la columna Usuarios.activo
+   npm run db:test:create   # una sola vez: base aparte para las pruebas (PR #3)
+   npm test                 # todas en verde
+   ```
+
+3. Quien tenga permisos de administrador del repositorio: proteger `main` y
+   `develop` exigiendo el CI en verde, y poner `develop` como rama por defecto.
+4. Resolver la migración de los datos reales (sección siguiente).
+
+---
+
+# ⚠️ TAREA PENDIENTE — migrar los datos de MySQL a PostgreSQL
+
+**El código está listo y verificado; esto es un paso operativo** que no se pudo
+ejecutar porque depende de la base local de la dueña del repositorio.
 
 Todo lo necesario está en el repositorio. Este es el procedimiento completo.
 
@@ -147,14 +166,15 @@ algo falla, PostgreSQL queda intacto. **MySQL nunca se modifica**, solo se lee.
 ## Cómo saber que salió bien
 
 ```bash
-npm test                                    # 36/36
+npm run db:test:create                      # si todavía no existe la base de pruebas
+npm test                                    # todas en verde
 npm start                                   # y en client/: npm run dev
 ```
 
 En la aplicación: el catálogo tiene que mostrar los 28 platos, cada vendedor solo
 su propio inventario, y la pestaña de liquidaciones del admin con importes
 calculados. Los usuarios entran con sus contraseñas de siempre: los hashes se
-migran tal cual.
+migran tal cual, y todas las cuentas quedan activas.
 
 ## Cuando termines
 
@@ -166,9 +186,11 @@ código quedó como quedó, y sigue siendo válido.
 
 ## Índice
 
-- [⚠️ TAREA PENDIENTE](#️-tarea-pendiente--leer-antes-de-cualquier-otra-cosa)
+- [Qué hacer primero](#qué-hacer-primero)
+- [⚠️ TAREA PENDIENTE](#️-tarea-pendiente--migrar-los-datos-de-mysql-a-postgresql)
 - [De dónde viene el proyecto](#de-dónde-viene-el-proyecto)
-- [Qué se corrigió](#qué-se-corrigió)
+- [Segunda ronda: revisión completa y nueve PRs](#segunda-ronda-revisión-completa-y-nueve-prs)
+- [Qué se corrigió en la primera ronda](#qué-se-corrigió-en-la-primera-ronda)
 - [La historia de la base de datos](#la-historia-de-la-base-de-datos)
 - [Qué queda pendiente](#qué-queda-pendiente)
 - [Decisiones de arquitectura](#decisiones-de-arquitectura)
@@ -200,7 +222,37 @@ Los ocho commits de la intervención, del más viejo al más nuevo:
 
 ---
 
-## Qué se corrigió
+## Segunda ronda: revisión completa y nueve PRs
+
+Se revisó de nuevo todo el repositorio y cada hallazgo importante se confirmó
+contra la API real antes de cambiar el código. Las decisiones de negocio las tomó
+el equipo: **rechazar un pedido repone el stock y cierra su estado**, **las
+cuentas se desactivan en lugar de borrarse** y **la ficha del producto es
+pública**.
+
+A partir de esta ronda se trabaja con git-flow: existe `develop`, cada cambio va
+en su propia rama y entra por pull request. Cada rama se armó sobre la anterior y
+trae sus propias pruebas.
+
+| PR | Rama | Qué resuelve |
+|---|---|---|
+| #1 | `bugfix/dependencias` | Vulnerabilidades altas en multer, path-to-regexp, lodash y axios; archivos y dependencias sin uso |
+| #2 | `bugfix/postgres-robustez` | Ids no numéricos, textos largos, tipos inválidos y emails duplicados en simultáneo daban 500 con PostgreSQL |
+| #3 | `feature/infra-equipo` | CI, base de pruebas aparte, `app.js` separado de `index.js`, `.gitattributes`, versión de Node y guía de contribución |
+| #4 | `bugfix/pedidos-stock-estados` | Rechazar no reponía el stock, los estados se podían revertir y dos locales despachando a la vez desincronizaban el pedido |
+| #5 | `bugfix/permisos-vigentes` | Un rol quitado seguía valiendo hasta 24 horas porque se leía del token |
+| #6 | `bugfix/integridad-historial` | Borrar un usuario reescribía liquidaciones, y los platos de un vendedor sin rol seguían a la venta |
+| #7 | `bugfix/seguridad-api` | Sin límite de intentos de login, sin encabezados de seguridad, imágenes falsas aceptadas e imágenes huérfanas en disco |
+| #8 | `feature/mejoras-frontend` | Ficha pública, resultados de búsqueda viejos, stock desactualizado tras comprar, formato de precios y celular |
+| #9 | `feature/actualiza-traspaso` | Este documento |
+
+El antes y el después de cada cambio está en la descripción de su PR. Las
+decisiones de diseño que dejaron están en el
+[README](README.md#decisiones-de-diseño).
+
+---
+
+## Qué se corrigió en la primera ronda
 
 ### Seguridad
 
@@ -329,6 +381,11 @@ dependencia de desarrollo porque el script de migración necesita leer el origen
 También se ajustaron las migraciones para que el `down` elimine los tipos ENUM:
 en PostgreSQL el tipo sobrevive al `DROP TABLE` y volver a migrar falla.
 
+La segunda ronda encontró tres diferencias más con MySQL que terminaban en 500:
+un id no numérico en la URL (MySQL lo convertía en 0; PostgreSQL rechaza la
+consulta), un texto más largo que su columna, y el `DECIMAL`, que el driver de
+PostgreSQL devuelve como texto. Las resolvió el PR #2.
+
 ### El script de migración
 
 `server/scripts/migrar-mysql-a-postgres.js`, expuesto como `npm run migrar:mysql`.
@@ -390,6 +447,15 @@ plato de $1200.50 ya está guardado como 1201. Los centavos se perdieron antes d
 esta intervención; la migración copia lo que hay. En el esquema nuevo la columna
 es `DECIMAL(10,2)`, así que de acá en adelante los decimales se respetan.
 
+### Cambios de esquema de la segunda ronda
+
+- **`20260914000001-add-activo-usuarios`** (PR #6): columna `Usuarios.activo`,
+  booleana y `true` por defecto. Las cuentas existentes, y las que traiga el
+  script de migración, quedan activas sin tocar nada.
+- **Base de pruebas aparte** (PR #3): las pruebas corren sobre `foodiebyte_test`
+  (`DB_NAME_TEST`) y `npm test` le aplica las migraciones pendientes antes de
+  correr. La base de desarrollo ya no recibe datos de prueba.
+
 ### Cómo se verificó
 
 No alcanza con que el script no tire error. Se probó contra tres bases MySQL
@@ -412,64 +478,59 @@ reales, y en cada una se comprobó el contenido, no solo los conteos:
 
 ## Qué queda pendiente
 
-### Lo único que bloquea: la migración de los datos
+### Lo que bloquea: la migración de los datos
 
 **Estado: sin ejecutar.** El procedimiento completo está al principio de este
-documento, en [TAREA PENDIENTE](#️-tarea-pendiente--leer-antes-de-cualquier-otra-cosa).
-Lo que sigue es el contexto de por qué quedó trabada. No es un problema de código. La migración tiene que
-correrse donde viven las dos bases, y quedó trabada en la configuración local:
-`sequelize` fallaba con *"la autenticación password falló para el usuario
-postgres"*.
+documento, en [TAREA PENDIENTE](#️-tarea-pendiente--migrar-los-datos-de-mysql-a-postgresql).
+No es un problema de código: la migración tiene que correrse donde viven las dos
+bases, y quedó trabada en la configuración local, con *"la autenticación password
+falló para el usuario postgres"*.
 
-Ese mensaje es ambiguo a propósito de PostgreSQL: aparece igual si la contraseña
-está mal, si el `.env` no existe (el código cae en el usuario `postgres` por
-defecto), o si el archivo quedó como `.env.txt`, que es lo que hace el Bloc de
-notas de Windows al guardar un archivo nuevo.
-
-Por eso se agregaron dos cosas:
+Por eso existen dos ayudas:
 
 - `npm run db:check` muestra qué configuración está leyendo la aplicación (sin
   imprimir la contraseña, solo su longitud), intenta conectarse y traduce el
   fallo a una causa concreta, identificada por el código de error de PostgreSQL
   y no por el texto del mensaje, que cambia según el idioma del sistema.
-- `config/config.js` corta el arranque con un mensaje explícito si falta el
-  `.env` o si `DB_PASSWORD` / `JWT_SECRET` siguen teniendo el texto de ejemplo.
-  Vive en `config.js` y no en el arranque del servidor porque es el punto por el
-  que pasan tanto la aplicación como `sequelize-cli`: así `db:create`,
-  `db:migrate`, `db:seed` y `npm start` dan todos el mismo diagnóstico.
+- `config/config.js` corta el arranque con un mensaje explícito si no hay `.env`
+  ni variables de entorno de la base, o si `DB_PASSWORD` / `JWT_SECRET` siguen
+  teniendo el texto de ejemplo. Vive en `config.js` porque es el punto por el que
+  pasan tanto la aplicación como `sequelize-cli`.
 
 **El primer paso de quien retome esto es correr `npm run db:check` y no avanzar
-hasta que diga `✅ Conexión establecida correctamente`.** Todos los comandos
-siguientes fallan con el mismo error hasta que la conexión funcione.
-
-Después, la secuencia está en el
-[README](README.md#migrar-datos-desde-mysql): `db:create`, `db:migrate`,
-`--dry-run`, y recién ahí `migrar:mysql`.
+hasta que diga `✅ Conexión establecida correctamente`.**
 
 ### Alternativa si los datos dejan de importar
 
-Si en algún momento se decide que los datos de prueba no valen la pena, todo se
-simplifica: `npm run db:setup` crea el esquema y carga datos de ejemplo (dos
-locales con diez platos, pensados para poder demostrar el aislamiento entre
-vendedores). Se saltea la migración por completo.
+`npm run db:setup` crea el esquema y carga datos de ejemplo (dos locales con diez
+platos, pensados para poder demostrar el aislamiento entre vendedores). Se saltea
+la migración por completo.
+
+### Del repositorio y el equipo
+
+- **Revisar y mergear los PRs #1 a #9 en orden**, con *Create a merge commit*.
+- **Proteger `main` y `develop`** exigiendo el CI en verde, y poner `develop` como
+  rama por defecto. Necesita permisos de administrador del repositorio.
+- A partir de ahora, los cambios nuevos salen de `develop` y vuelven a `develop`
+  por pull request; `main` solo recibe versiones listas. Ver
+  [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Cosas menores que quedaron afuera
 
-- **Sin CI.** No hay GitHub Actions. Las pruebas se corren a mano con `npm test`
-  y necesitan una base PostgreSQL levantada.
-- **Sin pruebas de frontend.** La verificación del frontend se hizo con scripts
-  de Playwright hechos para el momento, que no quedaron en el repositorio. Solo
-  hay ESLint.
+- **Sin pruebas de frontend.** Solo ESLint, build y pruebas a mano en el navegador.
 - **`categoria` sigue en la base real** pero el modelo se eliminó: las categorías
   son una lista fija que sirve `GET /platos/categorias`.
-- **Las imágenes se guardan en disco**, en `server/uploads/platos/`. No hay
-  limpieza de archivos huérfanos cuando se borra un plato.
+- **Los contadores del límite de intentos viven en memoria.** Se reinician con el
+  servidor y no se comparten entre varias instancias.
+- **Imágenes de categoría de 96×96 px** (pizza, hamburguesa, postre y sushi): se
+  ven pixeladas en la ficha. Se decidió dejarlas así por ahora.
 
 ---
 
 ## Decisiones de arquitectura
 
-Cosas que parecen raras hasta que se sabe por qué están.
+Cosas que parecen raras hasta que se sabe por qué están. El detalle de cada una
+está en el [README](README.md#decisiones-de-diseño).
 
 **El estado vive en la línea del pedido, no en el pedido.** Un carrito puede
 mezclar locales, así que el aislamiento no puede vivir en la cabecera. Cada fila
@@ -492,6 +553,26 @@ de la compra: si el vendedor cambia el precio o borra el plato, el historial y
 las liquidaciones siguen siendo correctos. Por eso `platoId` admite `NULL` con
 `ON DELETE SET NULL`.
 
+**Enviado y Rechazado son finales, y rechazar repone el stock.** Una línea solo
+pasa de `Pendiente` a uno de los dos. Antes de cambiarla se bloquea el pedido, así
+dos locales que despachan a la vez no calculan el estado general sobre datos
+viejos.
+
+**El rol se lee de la base en cada request.** El token guarda el rol del momento
+del login; si el administrador lo cambia o desactiva la cuenta, el token deja de
+servir enseguida en lugar de valer hasta que vence.
+
+**Las cuentas se desactivan, no se borran.** Borrar un usuario arrastraba sus
+pedidos y reescribía las liquidaciones. La regla de quién puede vender vive en un
+único lugar: el scope `habilitadoParaVender` del modelo `Usuario`.
+
+**Los datos inválidos son un 400, no un 500.** Los ids de la URL, los largos y los
+tipos se validan antes de llegar a la base, y `utils/errores.js` traduce lo que
+igual llegue.
+
+**`app.js` y `index.js` están separados.** Las pruebas levantan la misma
+aplicación que producción, con CORS, límites y manejo de errores incluidos.
+
 **El esquema lo administran las migraciones, no `sync()`.** `index.js` solo hace
 `authenticate()`. Así el estado de la base queda versionado y es reproducible.
 
@@ -505,30 +586,41 @@ Ahora salen de `config/categorias.js` vía `GET /platos/categorias`.
 
 ```
 FoodieByte/
+├── .github/                       CI (GitHub Actions) y plantilla de pull request
+├── CONTRIBUTING.md                Ramas, commits y pull requests
 ├── client/                        React 19 + Vite
 │   └── src/
 │       ├── api/client.js          Axios: URL base, token y sesión vencida
-│       ├── utils/imagenes.js      Resolución de la imagen de cada plato
+│       ├── utils/                 Imágenes, formato de precios y límites de formularios
 │       ├── state/                 Context de sesión y carrito
 │       └── components/admin/      Piezas del panel de gestión
 │
 └── server/                        Node + Express + Sequelize
+    ├── app.js                     Aplicación Express (la usan index.js y las pruebas)
+    ├── index.js                   Arranque: conecta la base y escucha
     ├── config/
-    │   ├── config.js              Conexión + validación del .env
-    │   ├── seguridad.js           JWT, roles y porcentaje de comisión
+    │   ├── config.js              Conexión + validación del entorno
+    │   ├── seguridad.js           JWT, roles, comisión y límite de intentos
+    │   ├── limites.js             Largos máximos, stock máximo e id máximo
     │   └── categorias.js          Lista única de categorías
-    ├── middleware/auth.js         Único jwt.verify del backend
-    ├── migrations/                5 migraciones, esquema versionado
+    ├── middleware/
+    │   ├── auth.js                Único jwt.verify; rol y estado leídos de la base
+    │   ├── validarId.js           Ids de la URL
+    │   └── limitarIntentos.js     Fuerza bruta en login y registro
+    ├── migrations/                6 migraciones, esquema versionado
     ├── models/                    Usuario · Plato · Pedido · PedidoItem · Pregunta
-    ├── routes/                    usuarios(4) · platos(10) · pedidos(5) · admin(9)
+    ├── routes/                    usuarios · platos · pedidos · admin
+    ├── utils/
+    │   ├── errores.js             Errores de datos de la base → 400 / 409
+    │   └── imagenes.js            Validación y borrado de las imágenes subidas
     ├── scripts/
     │   ├── migrar-mysql-a-postgres.js
     │   └── verificar-conexion.js
     ├── seeders/                   Admin + 2 locales de demo + 10 platos
-    └── pruebas/pruebas-api.js     36 pruebas de integración
+    └── pruebas/pruebas-api.js     73 pruebas de integración
 ```
 
-Los 28 endpoints están listados en el [README](README.md#api).
+Los endpoints y los códigos de error están listados en el [README](README.md#api).
 
 ---
 
@@ -537,15 +629,17 @@ Los 28 endpoints están listados en el [README](README.md#api).
 Con PostgreSQL corriendo y el `.env` configurado:
 
 ```bash
-cd server && npm run db:check   # la conexión responde
-cd server && npm test           # 36/36
-cd client && npm run lint       # 0 errores
-cd client && npm run build      # compila
+cd server && npm run db:check         # la conexión responde
+cd server && npm run db:test:create   # solo la primera vez
+cd server && npm test                 # todas en verde
+cd client && npm run lint             # 0 errores
+cd client && npm run build            # compila
 ```
 
-Las pruebas crean y borran sus propios datos, pero conviene correrlas sobre una
-base de desarrollo. Cubren autenticación, stock transaccional con un caso de
-concurrencia real, aislamiento entre locales, cálculo de comisiones y preguntas.
+Las pruebas corren sobre `foodiebyte_test`, nunca sobre la base de desarrollo, y
+cortan antes de crear un solo dato si la configuración apunta a otra base. Crean
+y borran sus propios datos y no dejan imágenes en `uploads/platos`. El CI de
+GitHub corre lo mismo en cada pull request.
 
 Si se toca la lógica de pedidos, comisiones o permisos, **`npm test` es la red de
 seguridad**: varias de esas pruebas existen porque el bug que verifican estuvo
@@ -572,9 +666,27 @@ que una contraseña que lo contenga **sí** hay que encomillarla.
 crear el `.env`: `copy .env.example .env` y después `notepad .env`, que al abrir
 un archivo existente conserva el nombre.
 
-**`git pull` borra `server/node_modules`** en los clones viejos, porque esos
-archivos estaban versionados y dejaron de estarlo. Hay que correr `npm install`
-después. No es un error.
+**Después de un `pull` con migraciones o dependencias nuevas**, correr
+`npm run db:migrate` y `npm install` en `server/`. La base de pruebas la migra
+sola `npm test`.
+
+**Cambiar el rol de alguien cierra su sesión.** Es intencional: el servidor
+compara el rol del token con el de la base. Al aprobar a un vendedor, tiene que
+volver a iniciar sesión para ver su panel.
+
+**Desactivar un local saca sus platos del catálogo.** No se borran: vuelven al
+reactivarlo. Si un plato "desapareció", revisar que su local esté activo y siga
+teniendo rol de vendedor.
+
+**Detrás de un proxy hay que configurar `trust proxy`.** El límite de intentos
+agrupa por IP. Si la API se publica detrás de un proxy o balanceador (Render,
+Railway, Nginx) sin `app.set('trust proxy', 1)`, todos los usuarios comparten la
+IP del proxy: diez fallos de cualquiera bloquean ese correo para todos, y el tope
+de registros pasa a ser global.
+
+**Fin de línea.** `.gitattributes` fija LF para los archivos de texto. Un diff
+donde "cambia todo el archivo" sin cambios reales es de fin de línea: no
+commitearlo.
 
 **Los seeders necesitan `ADMIN_PASSWORD` en el `.env`** y cortan si falta. Es
 deliberado: no hay contraseñas por defecto en el código.
@@ -588,11 +700,13 @@ agregarían, en orden de relación esfuerzo/beneficio.
 
 1. **Pruebas de frontend.** Es el hueco más grande. Vitest para el carrito y el
    contexto, o Playwright para los tres roles.
-2. **CI en GitHub Actions.** Un workflow con un servicio PostgreSQL que corra
-   `npm test` y `npm run lint` en cada push. El proyecto ya está preparado: las
-   pruebas no necesitan nada más que la base.
+2. **Primera versión.** Con los PRs mergeados, abrir `release/1.0.0` desde
+   `develop` y llevarla a `main` con su tag.
 3. **Paginación del catálogo.** Hoy `GET /platos` devuelve todo. Con 28 platos no
    molesta, con 500 sí.
-4. **Limpieza de imágenes huérfanas** al borrar un plato.
+4. **Preparación para deploy.** Soporte para `DATABASE_URL`, `trust proxy` y un
+   almacenamiento compartido (por ejemplo Redis) para el límite de intentos.
 5. **Valoraciones de verdad**, si se quieren recuperar. Se quitaron por ser un
    mock; implementarlas es una tabla, dos endpoints y el promedio en la ficha.
+6. **Imágenes de categoría en mejor resolución** para pizza, hamburguesa, postre
+   y sushi.
