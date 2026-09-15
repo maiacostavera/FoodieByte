@@ -46,12 +46,13 @@ const AppProvider = ({ children }) => {
         setCarrito([]);
     }, []);
 
-    // Si la API responde 401 (token vencido o revocado), se cierra la sesión
-    // y se avisa, en lugar de dejar al usuario con una sesión muerta.
+    // Si la API responde 401 (token vencido, cuenta eliminada o permisos
+    // cambiados), se cierra la sesión y se muestra el motivo que da el
+    // servidor, en lugar de dejar al usuario con una sesión muerta.
     useEffect(() => {
-        registrarManejadorDeSesion(() => {
+        registrarManejadorDeSesion((motivo) => {
             logout();
-            mostrarAviso('Tu sesión expiró. Iniciá sesión nuevamente.', 'error');
+            mostrarAviso(motivo || 'Tu sesión expiró. Iniciá sesión nuevamente.', 'error');
         });
     }, [logout, mostrarAviso]);
 

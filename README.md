@@ -327,7 +327,7 @@ Todas las respuestas de error tienen la forma `{ "mensaje": "..." }`.
 | Código | Cuándo |
 |---|---|
 | `400` | Datos inválidos: campos faltantes, tipos incorrectos, textos que superan el largo permitido, un cuerpo que no es JSON o un id de la URL que no es un entero positivo |
-| `401` | Falta el token, es inválido o expiró |
+| `401` | Falta el token, es inválido o expiró, el usuario ya no existe o su rol cambió desde que inició sesión |
 | `403` | El rol no alcanza, el recurso pertenece a otro local o el origen no está habilitado por CORS |
 | `404` | El recurso o la ruta no existen |
 | `409` | Conflicto: email ya registrado, stock insuficiente, solicitud de vendedor ya pendiente o un pedido que ya tiene estado final |
@@ -345,6 +345,13 @@ Todas las respuestas de error tienen la forma `{ "mensaje": "..." }`.
 `router.get('/x', autenticar, requiereRol('vendedor'), handler)`. Cuando la
 verificación se repite ruta por ruta es fácil que en alguna se omita, y esa ruta
 queda abierta sin que nada lo delate.
+
+Además de validar la firma, `autenticar` busca al usuario en la base en cada
+request. El token guarda el rol que el usuario tenía al iniciar sesión: sin esa
+consulta, un vendedor al que el administrador le quitaba el rol seguía
+publicando platos hasta que el token vencía, 24 horas después. Si el usuario ya
+no existe o su rol cambió, la API responde 401 y el frontend cierra la sesión
+mostrando el motivo.
 
 ### Multitenencia por línea de pedido
 
@@ -426,6 +433,7 @@ Levantan la misma aplicación que `npm start` (`server/app.js`) y verifican los
 escenarios críticos del sistema, agrupados en:
 
 - **Autenticación** — tokens inválidos, mensajes de login que no revelan qué correos existen, imposibilidad de auto-asignarse el rol `admin` al registrarse.
+- **Permisos vigentes** — un token deja de servir cuando el usuario se elimina o cambia de rol, y al volver a iniciar sesión rige el rol nuevo.
 - **Pedidos y stock** — descuento correcto, rechazo por falta de stock sin efectos colaterales, dos compras simultáneas del último plato disponible, precios inmunes a manipulación del cliente.
 - **Estados finales** — al rechazar vuelve el stock (sin superar el máximo), Enviado y Rechazado no se pueden revertir, y dos locales despachando a la vez dejan el pedido en Enviado.
 - **Aislamiento entre locales** — un cliente no lee pedidos ajenos, un local no ve ni modifica las comandas ni los platos de otro, y en un pedido mixto cada local gestiona solo su parte.

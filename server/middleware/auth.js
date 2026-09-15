@@ -1,14 +1,20 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const { Usuario } = require('../models');
 const { JWT_SECRET } = require('../config/seguridad');
 
 /**
  * Verifica el JWT del header Authorization y deja el usuario en req.usuario.
  * Toda ruta protegida debe pasar por acá: es el único lugar del backend que
  * llama a jwt.verify, así ninguna ruta puede "olvidarse" de validar el token.
+ *
+ * La firma no alcanza: el token guarda el rol que el usuario tenía al iniciar
+ * sesión. Por eso se lo busca en la base en cada request y manda el rol de la
+ * base. Si el usuario ya no existe o su rol cambió, el token deja de servir y
+ * hay que volver a iniciar sesión.
  */
-const autenticar = (req, res, next) => {
+const autenticar = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -20,16 +26,33 @@ const autenticar = (req, res, next) => {
     return res.status(401).json({ mensaje: 'Acceso denegado. Token faltante.' });
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.usuario = { id: Number(decoded.id), rol: decoded.rol };
-    next();
+    decoded = jwt.verify(token, JWT_SECRET);
   } catch (err) {
     const expirado = err.name === 'TokenExpiredError';
     return res.status(401).json({
       mensaje: expirado ? 'Tu sesión expiró. Iniciá sesión nuevamente.' : 'Token inválido.',
       expirado
     });
+  }
+
+  try {
+    const usuario = await Usuario.findByPk(Number(decoded.id), { attributes: ['id', 'rol'] });
+
+    if (!usuario) {
+      return res.status(401).json({ mensaje: 'Tu cuenta ya no está disponible. Iniciá sesión nuevamente.', expirado: true });
+    }
+    // Sin esta comprobación, un vendedor al que el administrador le quitaba el
+    // rol seguía publicando platos hasta que su token vencía.
+    if (usuario.rol !== decoded.rol) {
+      return res.status(401).json({ mensaje: 'Tus permisos cambiaron. Iniciá sesión nuevamente.', expirado: true });
+    }
+
+    req.usuario = { id: usuario.id, rol: usuario.rol };
+    next();
+  } catch (err) {
+    next(err);
   }
 };
 
