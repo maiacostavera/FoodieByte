@@ -200,11 +200,22 @@ const prepararConfiguracion = async () => {
   if (esValorDeEjemplo(leerValor(texto, 'DB_PASSWORD'))) {
     texto = asignarValor(texto, 'DB_PASSWORD', await obtenerPassword());
   }
+  // Las contraseñas de la demo son las que documenta el README. Un .env copiado
+  // de una versión anterior de .env.example trae "cambiame-…": se reemplazan.
   for (const [clave, valor] of [['ADMIN_PASSWORD', 'admin1234'], ['DEMO_PASSWORD', 'demo1234']]) {
-    if (!leerValor(texto, clave)) texto = asignarValor(texto, clave, valor);
+    const actual = leerValor(texto, clave);
+    if (!actual || esValorDeEjemplo(actual)) texto = asignarValor(texto, clave, valor);
   }
-  if (texto !== original) fs.writeFileSync(ENV_SERVIDOR, texto);
-  listo('server/.env ya existe: se respeta tu configuración');
+  // Las versiones anteriores habilitaban solo localhost; la web también se abre como 127.0.0.1.
+  if (leerValor(texto, 'CORS_ORIGIN') === 'http://localhost:5173') {
+    texto = asignarValor(texto, 'CORS_ORIGIN', 'http://localhost:5173,http://127.0.0.1:5173');
+  }
+  const completadas = ['JWT_SECRET', 'DB_PASSWORD', 'ADMIN_PASSWORD', 'DEMO_PASSWORD', 'CORS_ORIGIN']
+    .filter(clave => leerValor(texto, clave) !== leerValor(original, clave));
+  if (completadas.length > 0) fs.writeFileSync(ENV_SERVIDOR, texto);
+  listo(completadas.length > 0
+    ? `server/.env ya existe: se respeta tu configuración y se actualizó ${completadas.join(', ')}`
+    : 'server/.env ya existe: se respeta tu configuración');
 };
 
 const prepararBase = async () => {
