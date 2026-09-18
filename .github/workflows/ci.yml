@@ -74,3 +74,52 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+  instalacion:
+    name: Instalación desde cero · npm run setup
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # El mismo camino que sigue quien clona el repositorio: sin .env, sin
+      # dependencias y sin bases. La contraseña llega por variable porque en
+      # el CI no hay nadie para escribirla.
+      - name: npm run setup
+        run: npm run setup
+        env:
+          DB_PASSWORD: postgres
+
+      - name: La API arranca con la configuración generada y sirve la demo
+        run: |
+          npm --prefix server start > api.log 2>&1 &
+          for intento in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/api/health > /dev/null && break
+            sleep 1
+          done
+          platos=$(curl -sf http://127.0.0.1:3000/api/platos | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).length))")
+          echo "Platos en el catálogo: $platos"
+          if [ "$platos" != "45" ]; then cat api.log; exit 1; fi
+
+      - name: npm run setup se puede repetir sin romper nada
+        run: npm run setup
+        env:
+          DB_PASSWORD: postgres

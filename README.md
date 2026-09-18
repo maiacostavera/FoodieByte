@@ -15,11 +15,77 @@ Proyecto final de carrera — arquitectura full-stack adaptada a PostgreSQL.
 
 ---
 
+## Cómo correrlo en tu compu
+
+### 1. Instalá estos tres programas
+
+| Programa | Para qué | Descarga |
+|---|---|---|
+| **Node.js 22** (versión LTS) | Corre la API y la web | https://nodejs.org |
+| **PostgreSQL 16 o superior** | Guarda los datos | https://www.postgresql.org/download/ |
+| **Git** | Descarga el proyecto | https://git-scm.com |
+
+> Al instalar PostgreSQL te pide una contraseña para el usuario `postgres`.
+> **Anotala**: el instalador de FoodieByte te la va a pedir.
+
+### 2. Corré cuatro comandos
+
+En una terminal (en Windows sirve PowerShell o la terminal de VS Code):
+
+```bash
+git clone https://github.com/maiacostavera/FoodieByte.git
+cd FoodieByte
+npm run setup
+npm run dev
+```
+
+- **`npm run setup`** instala todo, te pide la contraseña de PostgreSQL, crea la
+  base y carga la demo. Se corre **una sola vez**.
+- **`npm run dev`** levanta la API y la web juntas. Cuando arranque, abrí
+  **http://localhost:5173**. Para cerrarla: `Ctrl + C`.
+
+Las próximas veces alcanza con `npm run dev`.
+
+### 3. Entrá con una cuenta de la demo
+
+| Rol | Email | Contraseña |
+|---|---|---|
+| Administrador | `admin@foodiebyte.com` | `admin1234` |
+| Local | `lanonna@foodiebyte.com` | `demo1234` |
+| Cliente | `lucia@foodiebyte.com` | `demo1234` |
+
+Qué trae la demo: ver [Datos de demostración](#datos-de-demostración).
+
+### Antes de presentar
+
+```bash
+npm run demo:reiniciar
+```
+
+Deja la demo como recién instalada: borra lo que se haya creado probando y vuelve
+a cargar los datos con fechas de hoy, así los pedidos pendientes son "de hace
+unos minutos". Se puede correr con la aplicación abierta.
+
+### Si algo falla
+
+| Qué aparece | Qué hacer |
+|---|---|
+| `node` o `npm` "no se reconoce como un comando" | Instalá Node.js y abrí una terminal **nueva**. |
+| "No hay un PostgreSQL respondiendo" | Iniciá el servicio: tecla Windows → *Servicios* → `postgresql-x64-…` → clic derecho → *Iniciar*. |
+| "PostgreSQL rechazó el usuario o su contraseña" | `npm run setup` la vuelve a pedir. También se puede corregir `DB_PASSWORD` en `server/.env`. |
+| "Port 5173 is already in use" o `EADDRINUSE` | Ya hay otra copia corriendo: cerrala con `Ctrl + C` o cerrá esa terminal. |
+| La página abre pero no aparecen platos | La API tarda unos segundos más en arrancar: esperá y recargá. |
+
+Para instalarlo a mano, paso por paso, está la [Instalación manual](#instalación-manual).
+
+---
+
 ## Índice
 
+- [Cómo correrlo en tu compu](#cómo-correrlo-en-tu-compu)
 - [Stack tecnológico](#stack-tecnológico)
 - [Roles y funcionalidades](#roles-y-funcionalidades)
-- [Puesta en marcha](#puesta-en-marcha)
+- [Instalación manual](#instalación-manual)
 - [Migrar datos desde MySQL](#migrar-datos-desde-mysql)
 - [Variables de entorno](#variables-de-entorno)
 - [Modelo de datos](#modelo-de-datos)
@@ -71,7 +137,10 @@ Proyecto final de carrera — arquitectura full-stack adaptada a PostgreSQL.
 
 ---
 
-## Puesta en marcha
+## Instalación manual
+
+Es lo mismo que hace `npm run setup`, paso por paso: sirve para entender qué pasa
+o para instalarlo sin el instalador.
 
 ### Requisitos
 
@@ -130,10 +199,20 @@ Las contraseñas salen de `ADMIN_PASSWORD` y `DEMO_PASSWORD` en el `.env`.
 
 Todo el contenido está en [`server/seeders/datos/demo.js`](server/seeders/datos/demo.js):
 para cambiar un precio o sumar un plato, se edita ese archivo y se recarga con
-`npm run db:reset`. Las fotos son de Unsplash; los créditos están en
+`npm run demo:reiniciar`. Las fotos son de Unsplash; los créditos están en
 [`server/seeders/fotos/CREDITOS.md`](server/seeders/fotos/CREDITOS.md).
 
 ### Comandos disponibles
+
+**raíz** (los que se usan en el día a día)
+
+| Comando | Descripción |
+|---|---|
+| `npm run setup` | Instala las dependencias, crea los `.env`, prepara las bases y carga la demo |
+| `npm run dev` | Levanta la API (puerto 3000) y la web (puerto 5173) juntas |
+| `npm run demo:reiniciar` | **Borra** la base y las fotos subidas, y vuelve a cargar la demo con fechas de hoy |
+| `npm test` | Pruebas de integración de la API |
+| `npm run lint` · `npm run build` | Lint y build del frontend |
 
 **server**
 
@@ -143,9 +222,10 @@ para cambiar un precio o sumar un plato, se edita ese archivo y se recarga con
 | `npm run dev` | La levanta con recarga automática |
 | `npm run db:check` | Diagnostica la conexión y muestra qué configuración se está leyendo |
 | `npm run db:setup` | Crea la base, migra y carga datos de ejemplo |
+| `npm run db:preparar` | Crea las bases que falten (desarrollo y pruebas), migra las dos y carga la demo si la base está vacía |
 | `npm run db:migrate` | Aplica las migraciones pendientes |
 | `npm run db:seed` | Carga los datos de ejemplo |
-| `npm run db:reset` | **Borra** la base y la reconstruye desde cero |
+| `npm run db:reset` | **Borra** la base y las fotos subidas, y la reconstruye con la demo (corta las conexiones abiertas) |
 | `npm run db:test:create` | Crea la base de pruebas (una sola vez) |
 | `npm run migrar:mysql` | Copia los datos de una base MySQL a PostgreSQL |
 | `npm test` | Pruebas de integración contra la base de pruebas |

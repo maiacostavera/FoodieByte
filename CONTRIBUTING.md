@@ -85,8 +85,9 @@ Si una rama depende de otra que todavía no se mergeó, se crea encima de esa y 
 ## Base de datos
 
 - El esquema solo cambia con **migraciones nuevas** en `server/migrations/`. Nunca se edita una migración que ya está en `develop`: la otra persona ya la corrió.
-- Después de hacer `pull` de algo con migraciones nuevas: `npm run db:migrate`.
-- Las pruebas usan una base aparte (`DB_NAME_TEST`). Se crea una sola vez con `npm run db:test:create`, y `npm test` le aplica solo las migraciones pendientes.
+- Para instalar desde cero (dependencias, `.env`, bases y datos de la demo) alcanza con `npm run setup` en la raíz. Se puede volver a correr: no pisa nada.
+- Después de hacer `pull` de algo con migraciones nuevas: `npm run db:migrate` en `server/` (o `npm run setup`, que también las aplica).
+- Las pruebas usan una base aparte (`DB_NAME_TEST`). La crea `npm run setup` (a mano: `npm run db:test:create`), y `npm test` le aplica solo las migraciones pendientes.
 
 ## Fin de línea
 
