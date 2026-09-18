@@ -322,6 +322,7 @@ documenta cada variable.
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Conexión a PostgreSQL (el puerto por defecto es `5432`) |
 | `DB_NAME_TEST` | Base que usan las pruebas (por defecto `foodiebyte_test`) |
 | `DB_SSL` | `true` si el servidor exige TLS (Neon, Supabase, Railway); `false` en local |
+| `DB_LOGGING` | `true` para ver en la terminal cada consulta SQL de la API (por defecto no se muestran) |
 | `JWT_SECRET` | Clave de firma de los tokens. Generala con `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
 | `JWT_EXPIRES_IN` | Vigencia del token (por defecto `24h`) |
 | `PORT` | Puerto de la API (por defecto `3000`) |

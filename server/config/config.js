@@ -66,7 +66,8 @@ module.exports = {
   development: {
     ...base,
     database: process.env.DB_NAME || 'foodiebyte_db',
-    logging: console.log
+    // Con DB_LOGGING=true se ve cada consulta SQL; si no, la terminal muestra solo los pedidos HTTP.
+    logging: process.env.DB_LOGGING === 'true' ? console.log : false
   },
   // La usan npm test y el CI: una base aparte para que las pruebas nunca
   // escriban sobre los datos de desarrollo.
