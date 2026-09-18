@@ -1,7 +1,7 @@
 # FoodieByte · Estado del proyecto y traspaso
 
 Documento de traspaso para quien retome el desarrollo.
-Última actualización: versión 1.0.0, lista para presentar (18/09/2026).
+Última actualización: versión 1.0.1, lista para presentar (18/09/2026).
 
 Para instalar y correr el proyecto, el documento de referencia es
 [`README.md`](README.md). La forma de trabajar con ramas, commits y pull requests
@@ -23,11 +23,11 @@ Hubo tres rondas de trabajo:
 3. **Lista para presentar**: demo realista, instalación con un comando, rediseño
    completo, dirección de entrega, métricas y pruebas de punta a punta.
 
-Todo está en `main` como **versión 1.0.0** (ver [`CHANGELOG.md`](CHANGELOG.md)).
+Todo está en `main` como **versión 1.0.1** (ver [`CHANGELOG.md`](CHANGELOG.md)).
 
 | | Estado |
 |---|---|
-| Código | ✅ `main` tiene la versión 1.0.0 y `develop` está al día |
+| Código | ✅ `main` tiene la versión 1.0.1 y `develop` está al día |
 | Instalación | ✅ `npm run setup` y `npm run dev` desde la raíz |
 | Datos de la demo | ✅ 7 locales, 45 platos con foto, seis semanas de pedidos |
 | Pruebas de la API | ✅ 80 escenarios contra PostgreSQL real |
@@ -227,7 +227,8 @@ anterior: una rama por tema y un pull request con su CI y sus pruebas.
 | #14 | `feature/rediseno-visual` | Sistema de diseño en CSS, todas las pantallas rehechas y navegación por la dirección |
 | #15 | `feature/pruebas-e2e` | Pruebas de punta a punta con Playwright y su job de CI |
 | #16 | `feature/datos-de-entrega` | Dirección de entrega y aclaraciones en cada pedido |
-| — | `release/1.0.0` | Versión 1.0.0 en `main`: este documento, el `CHANGELOG.md` y la revisión final |
+| #17 | `release/1.0.0` | Versión 1.0.0 en `main`: este documento, el `CHANGELOG.md` y la revisión final |
+| — | `hotfix/1.0.1` | La terminal de `npm run dev` deja de mostrar cada consulta SQL (`DB_LOGGING=true` para verlas) |
 
 Detalles que conviene saber:
 
