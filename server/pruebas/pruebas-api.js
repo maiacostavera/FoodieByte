@@ -349,6 +349,29 @@ async function ejecutar() {
     assert.ok(!alertasDeUno.includes(platoLocal2.id), 'Se filtró el stock de otro local');
   });
 
+  await prueba('La serie de ventas por día cubre dos semanas y cuadra con lo facturado', async () => {
+    const { datos } = await pedir('GET', '/api/pedidos/estadisticas', { token: local1.token });
+    assert.strictEqual(datos.ventasPorDia.length, 14);
+
+    const fechas = datos.ventasPorDia.map(dia => dia.fecha);
+    assert.deepStrictEqual([...fechas].sort(), fechas, 'Los días no vienen en orden');
+
+    // Todo lo que vendió este local se vendió hoy, durante las pruebas: la
+    // serie tiene que sumar exactamente lo facturado y caer en el último día.
+    const sumaDeLaSerie = datos.ventasPorDia.reduce((acc, dia) => acc + dia.total, 0);
+    assert.strictEqual(sumaDeLaSerie, Number(datos.totalFacturado));
+    assert.strictEqual(datos.ventasPorDia[13].total, Number(datos.totalFacturado));
+  });
+
+  await prueba('Los platos más vendidos de un local son solo los suyos', async () => {
+    const { datos } = await pedir('GET', '/api/pedidos/estadisticas', { token: local2.token });
+    assert.ok(Array.isArray(datos.masVendidos) && datos.masVendidos.length > 0);
+
+    const lineasPropias = await PedidoItem.findAll({ where: { vendedorId: local2.usuario.id } });
+    const nombresPropios = new Set(lineasPropias.map(linea => linea.nombrePlato));
+    assert.ok(datos.masVendidos.every(plato => nombresPropios.has(plato.nombre)), 'Aparecen platos de otro local');
+  });
+
   await prueba('Un local no puede editar ni borrar el plato de otro', async () => {
     const edicion = await pedir('PUT', `/api/platos/${platoLocal2.id}/stock`, {
       token: local1.token,
@@ -408,6 +431,16 @@ async function ejecutar() {
       datos.gananciasPlataforma,
       Number((datos.volumenVentas * 0.05).toFixed(2))
     );
+  });
+
+  await prueba('El admin ve las ventas por día de toda la plataforma', async () => {
+    const plataforma = await pedir('GET', '/api/admin/estadisticas', { token: admin.token });
+    const uno = await pedir('GET', '/api/pedidos/estadisticas', { token: local1.token });
+    const dos = await pedir('GET', '/api/pedidos/estadisticas', { token: local2.token });
+
+    assert.strictEqual(plataforma.datos.ventasPorDia.length, 14);
+    const hoy = (respuesta) => respuesta.datos.ventasPorDia[13].total;
+    assert.ok(hoy(plataforma) >= hoy(uno) + hoy(dos), 'La plataforma vendió hoy menos que dos de sus locales');
   });
 
   await prueba('El admin no puede quitarse a sí mismo el rol de administrador', async () => {

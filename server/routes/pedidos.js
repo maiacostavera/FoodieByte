@@ -9,6 +9,7 @@ const { validarIdDeRuta } = require('../middleware/validarId');
 const { ROLES } = require('../config/seguridad');
 const { LIMITES, MAX_INTEGER } = require('../config/limites');
 const { responderError } = require('../utils/errores');
+const { ventasPorDia, masVendidos } = require('../utils/estadisticas');
 
 // Una línea pendiente solo puede pasar a uno de estos estados, y ahí queda:
 // ni Enviado ni Rechazado se pueden revertir.
@@ -339,11 +340,19 @@ router.get('/estadisticas', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN)
       order: [['stock', 'ASC']]
     });
 
+    const vendedorId = esAdmin ? null : req.usuario.id;
+    const [ventasDiarias, platosMasVendidos] = await Promise.all([
+      ventasPorDia({ vendedorId }),
+      masVendidos({ vendedorId })
+    ]);
+
     res.json({
       totalFacturado: Number(Number(totalFacturado).toFixed(2)),
       totalPedidos: pedidosDistintos,
       pedidosPendientes,
-      platosEnAlerta
+      platosEnAlerta,
+      ventasPorDia: ventasDiarias,
+      masVendidos: platosMasVendidos
     });
   } catch (err) {
     responderError(res, err, {
