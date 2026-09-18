@@ -96,6 +96,12 @@ const borrarFotosSubidas = () => {
 };
 
 const principal = async () => {
+  // Reiniciar borra la base entera: nunca sobre una base de producción.
+  if (reiniciar && process.env.NODE_ENV === 'production') {
+    console.error('\n  \x1b[31m✖\x1b[0m Con NODE_ENV=production no se borra la base. --reiniciar es solo para desarrollo y demos.');
+    process.exit(1);
+  }
+
   // Se conecta a la base "postgres", que existe siempre, para poder crear o borrar las demás.
   const servidor = nuevoCliente('postgres');
   await servidor.connect();

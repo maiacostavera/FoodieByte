@@ -27,8 +27,9 @@
  *
  * Requisitos previos:
  *   1. Los datos de conexión a MySQL en el .env (variables MYSQL_*).
- *   2. La base PostgreSQL creada y migrada: npm run db:create && npm run db:migrate
- *      (sin seed: los datos los trae esta migración).
+ *   2. La base PostgreSQL creada y migrada: `npm run setup` en la raíz.
+ *      Como también carga la demo, la importación se corre con --force para
+ *      reemplazarla por los datos de MySQL.
  */
 
 require('dotenv').config({ quiet: true });
@@ -570,9 +571,8 @@ async function migrar() {
   if (usuariosEnDestino > 0 && !FORZAR && !SIMULACRO) {
     log(`\n⚠️  El destino ya tiene ${usuariosEnDestino} usuarios.`);
     log('   Para no mezclar datos, la migración se detiene acá.');
-    log('   Si querés reemplazarlos, volvé a empezar de cero:');
-    log('     npm run db:reset  (y después no corras el seed)');
-    log('   O ejecutá este script con --force para borrar el destino y migrar encima.');
+    log('   Si querés reemplazarlos (por ejemplo, la demo que carga npm run setup),');
+    log('   volvé a correr este script con --force: vacía el destino y migra encima.');
     if (conexion) await conexion.end();
     await sequelize.close();
     process.exit(1);
@@ -688,9 +688,9 @@ async function migrar() {
 
       imprimirResumen();
       log(`\n📤 Datos exportados a ${destino} (${kb} KB)`);
-      log('\n   Llevá ese archivo a la máquina donde está PostgreSQL y ahí ejecutá:');
-      log(`     npm run db:create && npm run db:migrate`);
-      log(`     node scripts/migrar-mysql-a-postgres.js --importar ${path.basename(destino)}`);
+      log('\n   Llevá ese archivo a la carpeta server/ de la máquina donde está PostgreSQL');
+      log('   (con el proyecto instalado con npm run setup) y ahí ejecutá:');
+      log(`     node scripts/migrar-mysql-a-postgres.js --importar ${path.basename(destino)} --force`);
       log('\n   Las imágenes de los platos son archivos aparte: copiá también');
       log('   la carpeta server/uploads/platos/ si querés conservarlas.\n');
 
@@ -795,7 +795,7 @@ async function migrar() {
   log('\n🎉 Migración completada.');
   log('   Las imágenes de los platos no están en la base: siguen en server/uploads/platos/');
   log('   y las rutas guardadas en imagenUrl siguen siendo válidas.');
-  log('   Arrancá el servidor con: npm start');
+  log('   Arrancá la aplicación desde la raíz del proyecto con: npm run dev');
 }
 
 function imprimirResumen() {

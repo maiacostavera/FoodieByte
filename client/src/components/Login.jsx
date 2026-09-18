@@ -72,7 +72,8 @@ function Login({ emailInicial = '' }) {
                 <button type="button" className="enlace" onClick={() => navegar(RUTAS.registro)}>Creala gratis</button>
             </p>
 
-            {CUENTAS_DEMO.length > 0 && (
+            {/* import.meta.env.DEV vale false en el build: el bloque entero desaparece. */}
+            {import.meta.env.DEV && CUENTAS_DEMO.length > 0 && (
                 <div className="cuentas-demo">
                     <p className="cuentas-demo__titulo"><Icono nombre="info" tamano={14} />Entrar con una cuenta de la demo</p>
                     <div className="cuentas-demo__lista">

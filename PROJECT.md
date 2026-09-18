@@ -1,94 +1,113 @@
 # FoodieByte · Estado del proyecto y traspaso
 
 Documento de traspaso para quien retome el desarrollo.
-Última actualización: segunda ronda de mejoras (pull requests #1 a #9 hacia `develop`).
+Última actualización: versión 1.0.0, lista para presentar (18/09/2026).
 
 Para instalar y correr el proyecto, el documento de referencia es
 [`README.md`](README.md). La forma de trabajar con ramas, commits y pull requests
 está en [`CONTRIBUTING.md`](CONTRIBUTING.md). Este archivo cuenta **en qué estado
-está**, **qué se cambió y por qué**, y **qué queda pendiente**.
+está**, **qué se cambió y por qué**, y **qué queda por hacer**.
 
 ---
 
 ## Resumen en 30 segundos
 
-FoodieByte es una plataforma de gestión gastronómica (proyecto final de carrera)
-con tres roles: foodie, vendedor y administrador. Stack: React 19 + Vite en el
-frontend, Node/Express + Sequelize en el backend, **PostgreSQL** en la base.
+FoodieByte es una plataforma de pedidos gastronómicos (proyecto final de carrera)
+con tres roles: foodie (cliente), vendedor (local) y administrador. Stack: React 19
+y Vite en el frontend, Node/Express y Sequelize en el backend, **PostgreSQL** en la base.
 
-Hubo dos rondas de trabajo. La primera migró el proyecto a PostgreSQL y corrigió
-seguridad y multitenencia: está en `main`. La segunda hizo una revisión completa y
-dejó **nueve pull requests encadenados hacia `develop`**, pendientes de revisión.
+Hubo tres rondas de trabajo:
+
+1. **Migración a PostgreSQL** y corrección de seguridad y multitenencia.
+2. **Revisión completa**: nueve pull requests de robustez, permisos, estados y seguridad.
+3. **Lista para presentar**: demo realista, instalación con un comando, rediseño
+   completo, dirección de entrega, métricas y pruebas de punta a punta.
+
+Todo está en `main` como **versión 1.0.0** (ver [`CHANGELOG.md`](CHANGELOG.md)).
 
 | | Estado |
 |---|---|
-| Primera ronda: migración a PostgreSQL | ✅ En `main` |
-| Segunda ronda: PRs #1 a #9 | ⏳ Abiertos hacia `develop`, se mergean **en orden** |
-| Pruebas de integración | ✅ 73 escenarios contra PostgreSQL real, en una base aparte |
-| Integración continua | ✅ GitHub Actions en cada pull request hacia `develop` y `main` |
-| ESLint del frontend y build | ✅ 0 errores, compila |
-| Migración de los datos reales a PostgreSQL | ⚠️ **Pendiente** — ver más abajo |
+| Código | ✅ `main` tiene la versión 1.0.0 y `develop` está al día |
+| Instalación | ✅ `npm run setup` y `npm run dev` desde la raíz |
+| Datos de la demo | ✅ 7 locales, 45 platos con foto, seis semanas de pedidos |
+| Pruebas de la API | ✅ 80 escenarios contra PostgreSQL real |
+| Pruebas de punta a punta | ✅ 13 recorridos con Playwright, en escritorio y celular |
+| Integración continua | ✅ 4 jobs en cada pull request: API, frontend, instalación desde cero y Playwright |
+| Dependencias | ✅ `npm audit` sin vulnerabilidades en la raíz, el servidor y el cliente |
+| Datos del MySQL original | ➖ Opcional: para presentar los reemplaza la demo (ver más abajo) |
 
 ---
 
-## Qué hacer primero
+## Para arrancar
 
-1. **Mergear los PRs #1 → #2 → … → #9 en ese orden**, todos con *Create a merge
-   commit* (sin squash): cada rama sale de la anterior.
-2. Después de mergear, en `server/`:
-
-   ```bash
-   npm install              # el PR #7 agrega helmet y express-rate-limit
-   npm run db:migrate       # el PR #6 agrega la columna Usuarios.activo
-   npm run db:test:create   # una sola vez: base aparte para las pruebas (PR #3)
-   npm test                 # todas en verde
-   ```
-
-3. Quien tenga permisos de administrador del repositorio: proteger `main` y
-   `develop` exigiendo el CI en verde, y poner `develop` como rama por defecto.
-4. Resolver la migración de los datos reales (sección siguiente).
-
----
-
-# ⚠️ TAREA PENDIENTE — migrar los datos de MySQL a PostgreSQL
-
-**El código está listo y verificado; esto es un paso operativo** que no se pudo
-ejecutar porque depende de la base local de la dueña del repositorio.
-
-Todo lo necesario está en el repositorio. Este es el procedimiento completo.
-
-## Antes de empezar: ¿dónde está cada base?
-
-Los datos originales viven en un **MySQL de XAMPP en la máquina de la dueña**
-(`foodiebyte_db`: 7 usuarios, 28 platos, 20 pedidos). Según dónde trabajes,
-cambia el camino:
-
-| Situación | Camino |
-|---|---|
-| Trabajás en la máquina que tiene el MySQL original | **Camino A** (directo) |
-| Trabajás en otra máquina | **Camino B** (en dos mitades) |
-| Los datos de prueba ya no importan | **Camino C** (empezar limpio) |
-
----
-
-## Camino A — MySQL y PostgreSQL en la misma máquina
-
-Con MySQL encendido en XAMPP y PostgreSQL corriendo, parado en `server/`:
+Con Node 22 y PostgreSQL instalados:
 
 ```bash
-npm install
-npm run db:check      # NO AVANZAR hasta que diga "Conexión establecida correctamente"
-npm run db:create
-npm run db:migrate    # NO correr db:seed: los datos los trae la migración
-node scripts/migrar-mysql-a-postgres.js --dry-run
-npm run migrar:mysql
+npm run setup            # una sola vez: dependencias, .env, bases y demo
+npm run dev              # API en :3000 y web en :5173
 ```
 
-## Camino B — Las bases están en máquinas distintas
+Antes de presentar, `npm run demo:reiniciar` deja la demo como nueva y con
+pedidos del día. El guion sugerido para la presentación está en el
+[README](README.md#guion-para-la-presentación).
+
+Si ya tenías el repositorio clonado: `git pull` y `npm run setup`, que instala lo
+nuevo y aplica las migraciones pendientes sin tocar tus datos.
+
+---
+
+## Índice
+
+- [Para arrancar](#para-arrancar)
+- [Opcional: traer los datos del MySQL original](#opcional-traer-los-datos-del-mysql-original)
+- [De dónde viene el proyecto](#de-dónde-viene-el-proyecto)
+- [Segunda ronda: revisión completa y nueve PRs](#segunda-ronda-revisión-completa-y-nueve-prs)
+- [Tercera ronda: lista para presentar](#tercera-ronda-lista-para-presentar)
+- [Qué se corrigió en la primera ronda](#qué-se-corrigió-en-la-primera-ronda)
+- [La historia de la base de datos](#la-historia-de-la-base-de-datos)
+- [Qué queda por hacer](#qué-queda-por-hacer)
+- [Decisiones de arquitectura](#decisiones-de-arquitectura)
+- [Mapa del código](#mapa-del-código)
+- [Cómo verificar que todo sigue bien](#cómo-verificar-que-todo-sigue-bien)
+- [Trampas conocidas](#trampas-conocidas)
+- [Ideas para continuar](#ideas-para-continuar)
+
+---
+
+## Opcional: traer los datos del MySQL original
+
+**Para presentar no hace falta**: la demo trae datos más completos. Esto sirve
+solo si se quieren conservar los datos de prueba que se cargaron cuando el
+proyecto usaba MySQL, en la máquina de la dueña del repositorio. El código está
+listo y verificado; es un paso operativo que tiene que correrse donde está esa base.
+
+Los datos viven en un **MySQL de XAMPP** (`foodiebyte_db`: 7 usuarios, 28 platos,
+20 pedidos). Los usuarios entran con sus contraseñas de siempre: los hashes se
+migran tal cual. Los pedidos migrados no tienen dirección de entrega, porque
+entonces no existía; la aplicación los muestra sin ella.
+
+Los dos caminos parten del proyecto ya instalado con `npm run setup`. Como el
+instalador carga la demo, la migración se corre con **`--force`**, que vacía la
+base de PostgreSQL y pone los datos de MySQL en su lugar. Para volver a la demo
+después: `npm run demo:reiniciar`.
+
+### Camino A: MySQL y PostgreSQL en la misma máquina
+
+Con MySQL encendido en XAMPP, parado en `server/`:
+
+```bash
+node scripts/migrar-mysql-a-postgres.js --dry-run
+node scripts/migrar-mysql-a-postgres.js --force
+```
+
+Los datos de conexión a MySQL son las variables `MYSQL_*` de `server/.env`. Los
+valores de ejemplo (`root` sin contraseña en `127.0.0.1:3306`) son los de XAMPP.
+
+### Camino B: las bases están en máquinas distintas
 
 La migración se parte en dos y solo viaja un archivo JSON.
 
-**En la máquina que tiene el MySQL** (solo necesita MySQL, no PostgreSQL):
+**En la máquina que tiene el MySQL**, parado en `server/`:
 
 ```bash
 node scripts/migrar-mysql-a-postgres.js --exportar datos-foodiebyte.json
@@ -98,59 +117,16 @@ Genera un JSON con los datos ya transformados y validados. Pesa unos pocos KB.
 Copiá también `server/uploads/platos/` si querés conservar las fotos: son
 archivos en disco, no están en la base.
 
-**En la máquina que tiene PostgreSQL** (no necesita MySQL):
+**En la máquina que tiene PostgreSQL**, parado en `server/`:
 
 ```bash
-npm run db:check
-npm run db:create && npm run db:migrate
-node scripts/migrar-mysql-a-postgres.js --importar datos-foodiebyte.json
+node scripts/migrar-mysql-a-postgres.js --importar datos-foodiebyte.json --force
 ```
 
 > No subas el JSON al repositorio: contiene los hashes de las contraseñas y los
 > datos de los usuarios.
 
-## Camino C — Empezar limpio
-
-Si se decide que los datos de prueba no valen la pena, no hay migración:
-
-```bash
-npm run db:setup
-```
-
-Crea el esquema y carga la demo completa: siete locales con 45 platos y fotos,
-clientes con seis semanas de pedidos, consultas y solicitudes de alta. El detalle
-está en la sección "Datos de demostración" del README.
-
----
-
-## El bloqueo que hay que resolver primero
-
-La dueña quedó trabada acá, y es lo primero con lo que te vas a encontrar:
-
-```
-ERROR: la autenticación password falló para el usuario «postgres»
-```
-
-**Ese mensaje es ambiguo:** aparece igual si la contraseña está mal, si falta el
-`.env` (el código cae en el usuario `postgres` por defecto), o si el archivo
-quedó como `.env.txt`, que es lo que hace el Bloc de notas de Windows al guardar
-un archivo nuevo.
-
-`npm run db:check` distingue los cuatro casos y dice cuál es. **Corrélo primero
-y no avances hasta que dé verde**, porque todos los comandos siguientes fallan
-con el mismo error hasta que la conexión funcione.
-
-Para crear el `.env` en Windows sin que quede como `.env.txt`:
-
-```
-copy .env.example .env
-notepad .env
-```
-
-El Bloc de notas agrega `.txt` a los archivos nuevos, pero conserva el nombre al
-abrir uno que ya existe.
-
-## Qué esperar del `--dry-run`
+### Qué esperar del `--dry-run`
 
 Con la base real tiene que decir **`ANTERIOR (productos en JSON)`** y mostrar
 `7 / 28 / 20` coincidiendo en las dos columnas. Va a informar además:
@@ -161,43 +137,24 @@ Con la base real tiene que decir **`ANTERIOR (productos en JSON)`** y mostrar
 - Si hay acentos rotos (`🔤`). En ese caso, agregá `--reparar-codificacion`.
 
 El `--dry-run` no escribe nada. La migración real corre en una transacción: si
-algo falla, PostgreSQL queda intacto. **MySQL nunca se modifica**, solo se lee.
+algo falla, PostgreSQL queda como estaba. **MySQL nunca se modifica**, solo se lee.
 
-## Cómo saber que salió bien
+### Cómo saber que salió bien
 
-```bash
-npm run db:test:create                      # si todavía no existe la base de pruebas
-npm test                                    # todas en verde
-npm start                                   # y en client/: npm run dev
+Con `npm run dev`, el catálogo tiene que mostrar los 28 platos, cada vendedor
+solo su propio inventario y el administrador las liquidaciones con importes
+calculados. `npm test` sigue en verde porque corre sobre su propia base.
+
+### Si PostgreSQL rechaza la contraseña
+
+```
+ERROR: la autenticación password falló para el usuario «postgres»
 ```
 
-En la aplicación: el catálogo tiene que mostrar los 28 platos, cada vendedor solo
-su propio inventario, y la pestaña de liquidaciones del admin con importes
-calculados. Los usuarios entran con sus contraseñas de siempre: los hashes se
-migran tal cual, y todas las cuentas quedan activas.
-
-## Cuando termines
-
-Actualizá este documento: mové esta sección a "completado" y borrá la fila
-pendiente de la tabla de estado. El resto del archivo explica **por qué** el
-código quedó como quedó, y sigue siendo válido.
-
----
-
-## Índice
-
-- [Qué hacer primero](#qué-hacer-primero)
-- [⚠️ TAREA PENDIENTE](#️-tarea-pendiente--migrar-los-datos-de-mysql-a-postgresql)
-- [De dónde viene el proyecto](#de-dónde-viene-el-proyecto)
-- [Segunda ronda: revisión completa y nueve PRs](#segunda-ronda-revisión-completa-y-nueve-prs)
-- [Qué se corrigió en la primera ronda](#qué-se-corrigió-en-la-primera-ronda)
-- [La historia de la base de datos](#la-historia-de-la-base-de-datos)
-- [Qué queda pendiente](#qué-queda-pendiente)
-- [Decisiones de arquitectura](#decisiones-de-arquitectura)
-- [Mapa del código](#mapa-del-código)
-- [Cómo verificar que todo sigue bien](#cómo-verificar-que-todo-sigue-bien)
-- [Trampas conocidas](#trampas-conocidas)
-- [Ideas para continuar](#ideas-para-continuar)
+Ese mensaje aparece igual si la contraseña está mal, si falta el `.env` o si
+quedó guardado como `.env.txt`. `npm run setup` ya la pide y la vuelve a pedir si
+está mal. Para diagnosticar a mano, `npm run db:check` (en `server/`) dice cuál
+de los casos es.
 
 ---
 
@@ -249,6 +206,47 @@ trae sus propias pruebas.
 El antes y el después de cada cambio está en la descripción de su PR. Las
 decisiones de diseño que dejaron están en el
 [README](README.md#decisiones-de-diseño).
+
+Los nueve se mergearon en `develop` el 15/09/2026 y llegaron a `main` con la
+versión 1.0.0.
+
+---
+
+## Tercera ronda: lista para presentar
+
+El objetivo fue que el proyecto se pueda clonar y dejar andando fácil, que se vea
+como un producto real y que funcione de punta a punta. Mismo método que la ronda
+anterior: una rama por tema y un pull request con su CI y sus pruebas.
+
+| PR | Rama | Qué resuelve |
+|---|---|---|
+| #10 | `bugfix/estado-pedido-mixto` | Un pedido con una parte enviada y otra rechazada quedaba "Pendiente" para siempre |
+| #11 | `feature/datos-demo` | Demo con 7 locales, 45 platos con foto, seis semanas de pedidos, consultas y solicitudes |
+| #12 | `feature/arranque-simple` | `npm run setup`, `npm run dev` y `npm run demo:reiniciar` en la raíz, y un job de CI que instala desde cero |
+| #13 | `feature/metricas-panel` | Ventas por día y platos más vendidos en las estadísticas |
+| #14 | `feature/rediseno-visual` | Sistema de diseño en CSS, todas las pantallas rehechas y navegación por la dirección |
+| #15 | `feature/pruebas-e2e` | Pruebas de punta a punta con Playwright y su job de CI |
+| #16 | `feature/datos-de-entrega` | Dirección de entrega y aclaraciones en cada pedido |
+| — | `release/1.0.0` | Versión 1.0.0 en `main`: este documento, el `CHANGELOG.md` y la revisión final |
+
+Detalles que conviene saber:
+
+- **Los datos de la demo están en un solo archivo**, `server/seeders/datos/demo.js`.
+  Las fechas se calculan al cargarlos: por eso conviene correr
+  `npm run demo:reiniciar` antes de presentar, así los pedidos pendientes son
+  "de hace unos minutos".
+- **Las fotos de la demo son de Unsplash** (licencia libre, con los créditos en
+  `server/seeders/fotos/CREDITOS.md`). Los seeders las copian a `uploads/platos/`.
+- **Las contraseñas de la demo** son `admin1234` y `demo1234`: vienen de
+  `.env.example` y el README las documenta. Con `npm run dev`, la pantalla de
+  ingreso tiene atajos de un clic; en el build de producción ese bloque no existe.
+- **El frontend ya no usa estilos en línea.** Las clases están en
+  `client/src/estilos/` y los colores son variables de `base.css`. La guía está
+  en `client/README.md`.
+- **Revisión final antes de `main`**: build de producción sin las contraseñas de
+  la demo, ningún archivo sensible versionado, `npm audit` en cero (se forzó
+  `uuid` a una versión corregida en el servidor) y sin `console.log` ni `TODO`
+  pendientes.
 
 ---
 
@@ -349,7 +347,8 @@ nada relacionado con datos.
 ### Punto de partida
 
 El proyecto usaba **MySQL vía XAMPP** en Windows. La dueña tiene ahí una base
-`foodiebyte_db` con datos de prueba que quiere conservar:
+`foodiebyte_db` con datos de prueba (traerlos es
+[opcional](#opcional-traer-los-datos-del-mysql-original)):
 
 ```
 usuarios       7 filas
@@ -448,7 +447,7 @@ plato de $1200.50 ya está guardado como 1201. Los centavos se perdieron antes d
 esta intervención; la migración copia lo que hay. En el esquema nuevo la columna
 es `DECIMAL(10,2)`, así que de acá en adelante los decimales se respetan.
 
-### Cambios de esquema de la segunda ronda
+### Cambios de esquema posteriores
 
 - **`20260914000001-add-activo-usuarios`** (PR #6): columna `Usuarios.activo`,
   booleana y `true` por defecto. Las cuentas existentes, y las que traiga el
@@ -456,6 +455,10 @@ es `DECIMAL(10,2)`, así que de acá en adelante los decimales se respetan.
 - **Base de pruebas aparte** (PR #3): las pruebas corren sobre `foodiebyte_test`
   (`DB_NAME_TEST`) y `npm test` le aplica las migraciones pendientes antes de
   correr. La base de desarrollo ya no recibe datos de prueba.
+- **`20260918000001-add-entrega-pedidos`** (PR #16): columnas
+  `Pedidos.direccionEntrega` y `Pedidos.notas`. Admiten `NULL` porque los pedidos
+  anteriores, y los que traiga el script de migración, no las tienen; la API las
+  valida en cada pedido nuevo.
 
 ### Cómo se verificó
 
@@ -477,54 +480,34 @@ reales, y en cada una se comprobó el contenido, no solo los conteos:
 
 ---
 
-## Qué queda pendiente
+## Qué queda por hacer
 
-### Lo que bloquea: la migración de los datos
-
-**Estado: sin ejecutar.** El procedimiento completo está al principio de este
-documento, en [TAREA PENDIENTE](#️-tarea-pendiente--migrar-los-datos-de-mysql-a-postgresql).
-No es un problema de código: la migración tiene que correrse donde viven las dos
-bases, y quedó trabada en la configuración local, con *"la autenticación password
-falló para el usuario postgres"*.
-
-Por eso existen dos ayudas:
-
-- `npm run db:check` muestra qué configuración está leyendo la aplicación (sin
-  imprimir la contraseña, solo su longitud), intenta conectarse y traduce el
-  fallo a una causa concreta, identificada por el código de error de PostgreSQL
-  y no por el texto del mensaje, que cambia según el idioma del sistema.
-- `config/config.js` corta el arranque con un mensaje explícito si no hay `.env`
-  ni variables de entorno de la base, o si `DB_PASSWORD` / `JWT_SECRET` siguen
-  teniendo el texto de ejemplo. Vive en `config.js` porque es el punto por el que
-  pasan tanto la aplicación como `sequelize-cli`.
-
-**El primer paso de quien retome esto es correr `npm run db:check` y no avanzar
-hasta que diga `✅ Conexión establecida correctamente`.**
-
-### Alternativa si los datos dejan de importar
-
-`npm run db:setup` crea el esquema y carga la demo completa (siete locales, 45
-platos con foto, seis semanas de pedidos, consultas y solicitudes de alta). Se
-saltea la migración por completo.
+Nada bloquea la presentación. Esto es lo que queda, de más a menos importante.
 
 ### Del repositorio y el equipo
 
-- **Revisar y mergear los PRs #1 a #9 en orden**, con *Create a merge commit*.
-- **Proteger `main` y `develop`** exigiendo el CI en verde, y poner `develop` como
-  rama por defecto. Necesita permisos de administrador del repositorio.
-- A partir de ahora, los cambios nuevos salen de `develop` y vuelven a `develop`
-  por pull request; `main` solo recibe versiones listas. Ver
-  [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Proteger `main` y `develop`** exigiendo el CI en verde. Necesita permisos de
+  administrador del repositorio.
+- **Las ramas creadas antes de la versión 1.0.0 quedaron atrás de `main`.**
+  Antes de seguir trabajando en una hay que traer los cambios
+  (`git merge origin/develop`) o empezar una rama nueva desde `develop`.
+- Los cambios nuevos salen de `develop` y vuelven por pull request; `main` solo
+  recibe versiones. Ver [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### Cosas menores que quedaron afuera
+### Opcional
 
-- **Sin pruebas de frontend.** Solo ESLint, build y pruebas a mano en el navegador.
-- **`categoria` sigue en la base real** pero el modelo se eliminó: las categorías
-  son una lista fija que sirve `GET /platos/categorias`.
+- **Traer los datos del MySQL original**, si se quieren conservar. El
+  procedimiento está [más arriba](#opcional-traer-los-datos-del-mysql-original).
+
+### Cosas menores
+
 - **Los contadores del límite de intentos viven en memoria.** Se reinician con el
   servidor y no se comparten entre varias instancias.
-- **Imágenes de categoría de 96×96 px** (pizza, hamburguesa, postre y sushi): se
-  ven pixeladas en la ficha. Se decidió dejarlas así por ahora.
+- **Las ilustraciones de categoría son de 96×96 px** (pizza, hamburguesa, postre y
+  sushi). Se ven chicas en el filtro de categorías, donde quedan bien, y solo
+  aparecen grandes si un plato no tiene foto propia.
+- **`categoria` sigue en la base MySQL original** pero no tiene modelo: las
+  categorías son la lista fija de `config/categorias.js`.
 
 ---
 
@@ -559,6 +542,10 @@ pasa de `Pendiente` a uno de los dos. Antes de cambiarla se bloquea el pedido, a
 dos locales que despachan a la vez no calculan el estado general sobre datos
 viejos.
 
+**La dirección de entrega es obligatoria, aunque la columna admite `NULL`.** Los
+pedidos anteriores a esa migración no la tienen; la API la exige en cada pedido
+nuevo y la valida antes de tocar el stock.
+
 **El rol se lee de la base en cada request.** El token guarda el rol del momento
 del login; si el administrador lo cambia o desactiva la cuenta, el token deja de
 servir enseguida en lugar de valer hasta que vence.
@@ -578,8 +565,19 @@ aplicación que producción, con CORS, límites y manejo de errores incluidos.
 `authenticate()`. Así el estado de la base queda versionado y es reproducible.
 
 **Las categorías las sirve el backend.** Estaban escritas a mano en tres archivos
-del frontend y se habían desincronizado entre sí (a una le faltaba "Parrilla").
-Ahora salen de `config/categorias.js` vía `GET /platos/categorias`.
+del frontend y se habían desincronizado entre sí. Ahora salen de
+`config/categorias.js` vía `GET /platos/categorias`.
+
+**La navegación usa el hash de la dirección.** `#/plato/12`, `#/pedidos`,
+`#/panel`: cada pantalla tiene su dirección y el botón atrás funciona, sin sumar
+una librería de rutas. Está en `client/src/utils/rutas.js`.
+
+**Los datos de la demo se generan con una semilla fija.** Cada instalación carga
+el mismo historial, con fechas relativas al momento de la carga.
+
+**Las pruebas de punta a punta tienen su propia base y sus propios puertos**
+(`foodiebyte_e2e`, API en 3100 y web en 5174). Se pueden correr con la
+aplicación abierta sin tocar los datos de desarrollo.
 
 ---
 
@@ -587,15 +585,21 @@ Ahora salen de `config/categorias.js` vía `GET /platos/categorias`.
 
 ```
 FoodieByte/
-├── .github/                       CI (GitHub Actions) y plantilla de pull request
+├── package.json                   setup · dev · demo:reiniciar · test · test:e2e
+├── scripts/                       Instalador (instalar.js) y chequeo previo a npm run dev
+├── playwright.config.js           Pruebas de punta a punta: puertos y base propios
+├── e2e/                           13 recorridos de Playwright, por rol
+├── CHANGELOG.md                   Qué trae cada versión
 ├── CONTRIBUTING.md                Ramas, commits y pull requests
+├── .github/                       CI (4 jobs) y plantilla de pull request
 ├── client/                        React 19 + Vite
 │   └── src/
+│       ├── App.jsx                Pantalla según la dirección, catálogo y filtros
 │       ├── api/client.js          Axios: URL base, token y sesión vencida
-│       ├── utils/                 Imágenes, formato de precios y límites de formularios
-│       ├── state/                 Context de sesión y carrito
-│       ├── estilos/               CSS con variables de diseño (colores, radios, sombras)
-│       └── components/panel/      Panel de gestión del local y del administrador
+│       ├── state/                 Context de sesión, carrito, avisos y confirmaciones
+│       ├── utils/                 Rutas, formato, imágenes y límites de formularios
+│       ├── estilos/               Sistema de diseño en CSS (variables en base.css)
+│       └── components/            Pantallas y piezas; panel/ es el panel de gestión
 │
 └── server/                        Node + Express + Sequelize
     ├── app.js                     Aplicación Express (la usan index.js y las pruebas)
@@ -609,19 +613,21 @@ FoodieByte/
     │   ├── auth.js                Único jwt.verify; rol y estado leídos de la base
     │   ├── validarId.js           Ids de la URL
     │   └── limitarIntentos.js     Fuerza bruta en login y registro
-    ├── migrations/                6 migraciones, esquema versionado
+    ├── migrations/                7 migraciones, esquema versionado
     ├── models/                    Usuario · Plato · Pedido · PedidoItem · Pregunta
     ├── routes/                    usuarios · platos · pedidos · admin
     ├── utils/
     │   ├── errores.js             Errores de datos de la base → 400 / 409
+    │   ├── estadisticas.js        Ventas por día y platos más vendidos
     │   └── imagenes.js            Validación y borrado de las imágenes subidas
     ├── scripts/
+    │   ├── preparar-base.js       Crea, migra y carga la demo (setup y demo:reiniciar)
     │   ├── migrar-mysql-a-postgres.js
     │   └── verificar-conexion.js
     ├── seeders/                   Demo: cuentas, platos con foto, pedidos y consultas
     │   ├── datos/demo.js          Todo el contenido de la demo, en un solo archivo
     │   └── fotos/                 Fotos de los platos (Unsplash, ver CREDITOS.md)
-    └── pruebas/pruebas-api.js     73 pruebas de integración
+    └── pruebas/pruebas-api.js     80 pruebas de integración
 ```
 
 Los endpoints y los códigos de error están listados en el [README](README.md#api).
@@ -630,28 +636,41 @@ Los endpoints y los códigos de error están listados en el [README](README.md#a
 
 ## Cómo verificar que todo sigue bien
 
-Con PostgreSQL corriendo y el `.env` configurado:
+Con PostgreSQL corriendo, desde la raíz:
 
 ```bash
-cd server && npm run db:check         # la conexión responde
-cd server && npm run db:test:create   # solo la primera vez
-cd server && npm test                 # todas en verde
-cd client && npm run lint             # 0 errores
-cd client && npm run build            # compila
+npm test                 # 80 pruebas de la API, sobre la base de pruebas
+npm run test:e2e         # 13 recorridos en el navegador, sobre su propia base
+npm run lint             # ESLint del frontend
+npm run build            # build de producción
 ```
 
-Las pruebas corren sobre `foodiebyte_test`, nunca sobre la base de desarrollo, y
-cortan antes de crear un solo dato si la configuración apunta a otra base. Crean
-y borran sus propios datos y no dejan imágenes en `uploads/platos`. El CI de
-GitHub corre lo mismo en cada pull request.
+Ninguna de las dos baterías toca la base de desarrollo, y las dos crean y borran
+sus propios datos. El CI de GitHub corre todo esto en cada pull request, más una
+instalación desde cero con `npm run setup`.
 
 Si se toca la lógica de pedidos, comisiones o permisos, **`npm test` es la red de
 seguridad**: varias de esas pruebas existen porque el bug que verifican estuvo
-presente en el código.
+presente en el código. Si se toca la interfaz, lo es `npm run test:e2e`.
 
 ---
 
 ## Trampas conocidas
+
+**Las fechas de la demo se calculan al cargarla.** Si se cargó hace días, los
+pedidos "de hace unos minutos" ya no lo son y el gráfico muestra los últimos días
+vacíos. Antes de presentar: `npm run demo:reiniciar`.
+
+**`npm run demo:reiniciar` borra la base de desarrollo y las fotos subidas.** Es
+para volver a la demo; no usarlo sobre datos que se quieran conservar. Con
+`NODE_ENV=production` se niega a correr.
+
+**Si el puerto 3000 o el 5173 están ocupados, `npm run dev` falla** con un mensaje
+claro: hay otra copia corriendo. Vite está fijado al 5173 porque CORS solo
+habilita ese origen (y `127.0.0.1:5173`).
+
+**Las pruebas de punta a punta usan el Google Chrome instalado.** Sin Chrome:
+`npx playwright install chromium` y correrlas con `E2E_CHROMIUM=1`.
 
 **Los nombres con mayúscula en PostgreSQL necesitan comillas dobles.**
 `SELECT * FROM "Usuarios";` funciona, `SELECT * FROM Usuarios;` no. La tabla
@@ -664,15 +683,15 @@ devuelven filas sin nombre. Hay que castear a `text` o usar `pg_tables`.
 
 **El `.env` no admite comillas ni espacios sobrantes.** `DB_PASSWORD="clave"`
 hace que la contraseña incluya las comillas. Y un `#` inicia un comentario, así
-que una contraseña que lo contenga **sí** hay que encomillarla.
+que una contraseña que lo contenga **sí** hay que encomillarla. `npm run setup`
+ya lo hace solo al escribir la contraseña.
 
 **En Windows el Bloc de notas guarda los archivos nuevos con `.txt`.** Para
-crear el `.env`: `copy .env.example .env` y después `notepad .env`, que al abrir
-un archivo existente conserva el nombre.
+crear el `.env` a mano: `copy .env.example .env` y después `notepad .env`, que al
+abrir un archivo existente conserva el nombre. Con `npm run setup` no hace falta.
 
-**Después de un `pull` con migraciones o dependencias nuevas**, correr
-`npm run db:migrate` y `npm install` en `server/`. La base de pruebas la migra
-sola `npm test`.
+**Después de un `pull`, correr `npm run setup`.** Instala las dependencias nuevas
+y aplica las migraciones pendientes sin tocar los datos.
 
 **Cambiar el rol de alguien cierra su sesión.** Es intencional: el servidor
 compara el rol del token con el de la base. Al aprobar a un vendedor, tiene que
@@ -692,30 +711,24 @@ de registros pasa a ser global.
 donde "cambia todo el archivo" sin cambios reales es de fin de línea: no
 commitearlo.
 
-**Los seeders necesitan `ADMIN_PASSWORD` en el `.env`** y cortan si falta. En el
-código no hay contraseñas: las de la demo (`admin1234` y `demo1234`) están en
-`.env.example`, que es solo una plantilla para correrlo en local.
-
 **Los seeders se pueden correr más de una vez** sin duplicar nada, pero no
 actualizan lo que ya existe. Si cambiás `seeders/datos/demo.js`, recargá todo
-con `npm run db:reset`.
+con `npm run demo:reiniciar`.
 
 ---
 
 ## Ideas para continuar
 
-Ninguna es necesaria para que el proyecto funcione; son las que más valor
-agregarían, en orden de relación esfuerzo/beneficio.
+Ninguna es necesaria para presentar; son las que más valor agregarían.
 
-1. **Pruebas de frontend.** Es el hueco más grande. Vitest para el carrito y el
-   contexto, o Playwright para los tres roles.
-2. **Primera versión.** Con los PRs mergeados, abrir `release/1.0.0` desde
-   `develop` y llevarla a `main` con su tag.
-3. **Paginación del catálogo.** Hoy `GET /platos` devuelve todo. Con 28 platos no
-   molesta, con 500 sí.
-4. **Preparación para deploy.** Soporte para `DATABASE_URL`, `trust proxy` y un
-   almacenamiento compartido (por ejemplo Redis) para el límite de intentos.
-5. **Valoraciones de verdad**, si se quieren recuperar. Se quitaron por ser un
-   mock; implementarlas es una tabla, dos endpoints y el promedio en la ficha.
-6. **Imágenes de categoría en mejor resolución** para pizza, hamburguesa, postre
-   y sushi.
+1. **Publicarla en internet.** Soporte para `DATABASE_URL`, `trust proxy`, un
+   almacenamiento de fotos que no se pierda (muchos servicios gratuitos borran el
+   disco en cada reinicio) y el límite de intentos en un almacenamiento
+   compartido, como Redis.
+2. **Pagos en línea**, por ejemplo con Mercado Pago. Hoy se paga al recibir.
+3. **Avisos en tiempo real** (WebSocket o eventos del servidor): hoy el local ve
+   las comandas nuevas con el botón "Actualizar".
+4. **Paginación del catálogo.** Con 45 platos no hace falta; con 500, sí.
+5. **Valoraciones de verdad**, si se quieren recuperar: una tabla, dos endpoints
+   y el promedio en la ficha.
+6. **Ilustraciones de categoría en mejor resolución.**
