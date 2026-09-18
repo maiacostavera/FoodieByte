@@ -94,6 +94,13 @@ function TarjetaPedido({ pedido }) {
                 <EstadoPedido estado={pedido.estado} />
             </header>
 
+            {pedido.direccionEntrega && (
+                <p className="pedido__entrega">
+                    <Icono nombre="ubicacion" tamano={15} />
+                    <span>{pedido.direccionEntrega}{pedido.notas && <span className="texto-tenue"> · {pedido.notas}</span>}</span>
+                </p>
+            )}
+
             {grupos.map(grupo => (
                 <div key={grupo.clave}>
                     <div className="pedido__local">

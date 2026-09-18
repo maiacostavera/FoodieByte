@@ -118,14 +118,14 @@ Para instalarlo a mano, paso por paso, está la [Instalación manual](#instalaci
 
 ### Foodie
 - Carrito en un panel lateral, que se conserva entre recargas y avisa si el pedido incluye varios locales.
-- Confirmación de pedidos con descuento de stock **transaccional**.
+- Confirmación de pedidos con dirección de entrega (se recuerda la última) y aclaraciones para el local, con descuento de stock **transaccional**.
 - Historial de pedidos agrupado por local, con el estado de cada parte y el total sin lo rechazado.
 - Consultas públicas sobre los platos.
 - Solicitud de alta como vendedor, con su estado visible mientras está en revisión.
 
 ### Vendedor (local)
 - Resumen con facturación, pedidos, pendientes, gráfico de ventas de los últimos 14 días y platos más vendidos.
-- Comandas pendientes como tarjetas, de la más vieja a la más nueva, e historial filtrable.
+- Comandas pendientes como tarjetas, con la dirección y las aclaraciones del cliente, de la más vieja a la más nueva, e historial filtrable.
 - Despacho o rechazo únicamente de sus propios productos; al rechazar, el stock vuelve.
 - ABM de su menú con búsqueda, vista previa de la foto y alertas de poco stock.
 - Respuesta a las consultas de sus clientes desde la ficha del plato.
@@ -356,7 +356,7 @@ Usuario ──< Plato ──< PedidoItem >── Pedido >── Usuario
 |---|---|
 | `Usuarios` | Cuentas y roles (`foodie`, `vendedor`, `admin`), si la cuenta está activa, y los datos de la solicitud de alta de local |
 | `platos` | Catálogo, con `vendedorId` como dueño |
-| `Pedidos` | Cabecera de la compra: comprador, total y estado general |
+| `Pedidos` | Cabecera de la compra: comprador, dirección de entrega, aclaraciones, total y estado general |
 | `PedidoItems` | Una fila por producto comprado, con su `vendedorId`, precio, cantidad y estado |
 | `Preguntas` | Consultas de los foodies y su respuesta |
 
@@ -569,7 +569,7 @@ Hay dos baterías, y el CI corre las dos en cada pull request:
 
 | Comando (en la raíz) | Qué prueba |
 |---|---|
-| `npm test` | La API, con 77 escenarios contra PostgreSQL real |
+| `npm test` | La API, con 80 escenarios contra PostgreSQL real |
 | `npm run test:e2e` | La aplicación completa en un navegador, como la usaría una persona |
 
 ### Pruebas de punta a punta

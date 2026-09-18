@@ -165,7 +165,8 @@ const AppProvider = ({ children }) => {
         [carrito]
     );
 
-    const enviarPedidoAlServidor = useCallback(async () => {
+    /** Confirma el carrito. `entrega` trae la dirección y las aclaraciones para el local. */
+    const enviarPedidoAlServidor = useCallback(async (entrega) => {
         if (carrito.length === 0) {
             mostrarAviso('No hay productos en el carrito.', 'error');
             return false;
@@ -174,6 +175,7 @@ const AppProvider = ({ children }) => {
         try {
             // Solo se manda id y cantidad: los precios los pone el servidor.
             const { data } = await api.post('/pedidos', {
+                ...entrega,
                 productos: carrito.map(item => ({ id: item.id, cantidad: item.cantidad }))
             });
             mostrarAviso(data.mensaje, 'exito');

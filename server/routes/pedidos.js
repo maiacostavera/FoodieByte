@@ -114,6 +114,23 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
     consolidados.set(id, (consolidados.get(id) || 0) + cantidad);
   }
 
+  // Datos de entrega: la dirección es obligatoria y las aclaraciones, opcionales.
+  const { direccionEntrega: direccionRecibida, notas: notasRecibidas } = req.body;
+  const direccionEntrega = typeof direccionRecibida === 'string' ? direccionRecibida.trim() : '';
+  if (direccionEntrega.length < 5) {
+    return res.status(400).json({ mensaje: 'Indicá la dirección de entrega: calle y número.' });
+  }
+  if (direccionEntrega.length > LIMITES.direccion) {
+    return res.status(400).json({ mensaje: `La dirección de entrega puede tener hasta ${LIMITES.direccion} caracteres.` });
+  }
+  if (notasRecibidas !== undefined && notasRecibidas !== null && typeof notasRecibidas !== 'string') {
+    return res.status(400).json({ mensaje: 'Las aclaraciones tienen que ser texto.' });
+  }
+  const notas = typeof notasRecibidas === 'string' ? notasRecibidas.trim() : '';
+  if (notas.length > LIMITES.notasPedido) {
+    return res.status(400).json({ mensaje: `Las aclaraciones pueden tener hasta ${LIMITES.notasPedido} caracteres.` });
+  }
+
   // Orden estable por id: dos compras simultáneas bloquean las filas en el
   // mismo orden y no se produce un interbloqueo (deadlock) entre ellas.
   const idsOrdenados = [...consolidados.keys()].sort((a, b) => a - b);
@@ -164,7 +181,9 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
       const nuevoPedido = await Pedido.create({
         usuarioId: req.usuario.id,
         total: Number(totalCalculado.toFixed(2)),
-        estado: 'Pendiente'
+        estado: 'Pendiente',
+        direccionEntrega,
+        notas: notas || null
       }, { transaction: t });
 
       const items = await PedidoItem.bulkCreate(

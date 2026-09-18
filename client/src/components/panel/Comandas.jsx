@@ -112,6 +112,12 @@ function Comanda({ pedido, alCambiarEstado }) {
                 </div>
                 <span className="comanda__tiempo"><Icono nombre="reloj" tamano={14} />{tiempoRelativo(pedido.createdAt)}</span>
             </div>
+            {pedido.direccionEntrega && (
+                <p className="comanda__entrega"><Icono nombre="ubicacion" tamano={15} />{pedido.direccionEntrega}</p>
+            )}
+            {pedido.notas && (
+                <p className="comanda__entrega comanda__notas"><Icono nombre="chat" tamano={15} />{pedido.notas}</p>
+            )}
             <ul className="comanda__items">
                 {(pedido.items || []).map(item => (
                     <li key={item.id}><strong>{item.cantidad}×</strong>{item.nombrePlato}</li>

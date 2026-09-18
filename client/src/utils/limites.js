@@ -11,5 +11,6 @@ export const LIMITES = {
     descripcion: 1000,
     tiempoPrep: 50,
     pregunta: 500,
+    notas: 300,
     stock: 100
 };
