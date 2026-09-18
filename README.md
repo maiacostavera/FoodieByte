@@ -80,9 +80,69 @@ Para instalarlo a mano, paso por paso, está la [Instalación manual](#instalaci
 
 ---
 
+## Guion para la presentación
+
+Un recorrido de unos diez minutos por los tres roles, con los datos de la demo.
+Antes de empezar: `npm run demo:reiniciar`, `npm run dev` y abrir
+**http://localhost:5173**. En la pantalla de ingreso hay atajos de un clic para
+entrar con cada cuenta.
+
+**1. Visitante, sin iniciar sesión (2 min)**
+
+- Buscar "pizza", filtrar por la categoría *Postres* y por el local *Barrio
+  Burger*, y ordenar por precio.
+- Abrir la *Pizza Margherita*: foto, tiempo de preparación, stock, una consulta
+  respondida por el local y más platos de *Pizzería La Nonna*. La ficha es
+  pública; para pedir hay que ingresar.
+- Cada pantalla tiene su propia dirección (`#/plato/…`) y el botón atrás del
+  navegador vuelve al menú.
+
+**2. Cliente: Lucía, `lucia@foodiebyte.com` (3 min)**
+
+- *Mis pedidos*: uno de hace unos minutos todavía pendiente, otros enviados, uno
+  rechazado y uno mixto, con una parte enviada y otra rechazada. Cada pedido se
+  muestra separado por local.
+- Armar un pedido de dos locales: una *Pizza Napolitana* de La Nonna y una
+  *Chocotorta* de Dulce Tentación. En el carrito se completa la dirección de
+  entrega (la de Lucía es Gorriti 4520, 3° B, Palermo) y una aclaración.
+- Al confirmar, el stock del catálogo baja en el momento y el pedido aparece
+  pendiente en *Mis pedidos*.
+
+**3. Local: `lanonna@foodiebyte.com` (3 min)**
+
+- *Resumen*: lo facturado, las comandas pendientes, los platos con poco stock,
+  las ventas de las últimas dos semanas y los platos más vendidos.
+- *Comandas*: el pedido de Lucía llega con su dirección y su aclaración, pero
+  **solo con la pizza**: la chocotorta la ve Dulce Tentación. Marcarlo enviado.
+  Rechazar otra comanda y mostrar en *Mi menú* que el stock volvió.
+- *Mi menú*: alertas de stock y alta de un plato con foto.
+- Responder una consulta desde la ficha del *Calzone de Jamón y Queso*, que
+  tiene una sin responder.
+
+**4. Administrador: `admin@foodiebyte.com` (2 min)**
+
+- *Resumen*: ventas de toda la plataforma, ganancia por comisión (5 %), locales y
+  usuarios activos.
+- *Usuarios*: dos pedidos de alta de local esperando aprobación (*La Pastería de
+  Juli* y *Taquería El Güero*). Al aprobar uno, esa cuenta pasa a tener su panel
+  de local. También hay una cuenta desactivada, que no puede ingresar.
+- *Liquidaciones*: cuánto vendió cada local y cuánto le corresponde después de
+  la comisión.
+- *Pedidos*: todos los pedidos de la plataforma, filtrables por estado. El de
+  Lucía aparece con la parte de cada local en su estado.
+
+**Para cerrar**
+
+- Achicar la ventana: el diseño se adapta al celular.
+- `npm run test:e2e` recorre estos mismos pasos solo, en un navegador real, en
+  poco más de un minuto.
+
+---
+
 ## Índice
 
 - [Cómo correrlo en tu compu](#cómo-correrlo-en-tu-compu)
+- [Guion para la presentación](#guion-para-la-presentación)
 - [Stack tecnológico](#stack-tecnológico)
 - [Roles y funcionalidades](#roles-y-funcionalidades)
 - [Instalación manual](#instalación-manual)
@@ -182,7 +242,7 @@ npm run dev               # http://localhost:5173
 
 ### Datos de demostración
 
-`npm run db:setup` carga una demo completa, pensada para mostrar la plataforma
+`npm run setup` carga una demo completa, pensada para mostrar la plataforma
 funcionando como si estuviera en uso:
 
 - 7 locales con 45 platos, cada uno con su foto, precios en pesos y stock
@@ -278,30 +338,32 @@ En el cliente, `VITE_API_URL` define la URL de la API.
 
 ## Migrar datos desde MySQL
 
-El proyecto usaba MySQL. `server/scripts/migrar-mysql-a-postgres.js` copia una
-base MySQL existente a PostgreSQL conservando los IDs originales, de modo que
-las relaciones y las rutas de las imágenes siguen siendo válidas.
+**Es opcional: para correr y presentar el proyecto no hace falta.** Sirve solo
+para conservar los datos de una base de cuando el proyecto usaba MySQL.
+`server/scripts/migrar-mysql-a-postgres.js` los copia a PostgreSQL conservando
+los IDs originales, de modo que las relaciones y las rutas de las imágenes
+siguen siendo válidas.
 
 ### Cómo se usa
 
-1. Dejá encendido el MySQL de origen y completá las variables `MYSQL_*` del `.env`.
-2. Creá el esquema en PostgreSQL **sin datos de ejemplo**:
+Con el proyecto instalado (`npm run setup`), parado en `server/`:
 
-   ```bash
-   npm run db:create && npm run db:migrate
-   ```
-
-3. Probá primero en seco: lee, valida y muestra el resumen sin escribir nada.
+1. Dejá encendido el MySQL de origen. Los datos de conexión son las variables
+   `MYSQL_*` del `.env`; las de ejemplo sirven para el MySQL de XAMPP.
+2. Probá primero en seco: lee, valida y muestra el resumen sin escribir nada.
 
    ```bash
    node scripts/migrar-mysql-a-postgres.js --dry-run
    ```
 
-4. Si el resumen es correcto, migrá:
+3. Si el resumen es correcto, migrá. Hace falta `--force` porque `npm run setup`
+   cargó la demo: la borra y pone los datos de MySQL en su lugar.
 
    ```bash
-   npm run migrar:mysql
+   node scripts/migrar-mysql-a-postgres.js --force
    ```
+
+Para volver a la demo después: `npm run demo:reiniciar` desde la raíz.
 
 ### Banderas
 
@@ -315,8 +377,8 @@ las relaciones y las rutas de las imágenes siguen siendo válidas.
 
 Las dos últimas sirven cuando MySQL y PostgreSQL están en máquinas distintas:
 se exporta donde vive MySQL, se copia el archivo, y se importa donde vive
-PostgreSQL. El JSON contiene hashes de contraseñas y datos de usuarios, así que
-no debe subirse al repositorio.
+PostgreSQL (`--importar datos-foodiebyte.json --force`). El JSON contiene hashes
+de contraseñas y datos de usuarios, así que no debe subirse al repositorio.
 
 ### Qué resuelve
 
@@ -655,15 +717,20 @@ FoodieByte/
 │   ├── migrations/                Esquema versionado
 │   ├── models/                    Modelos de Sequelize
 │   ├── pruebas/                   Pruebas de integración
-│   ├── scripts/                   Migración puntual de datos desde MySQL
+│   ├── scripts/                   Preparación de la base, diagnóstico de la conexión y migración desde MySQL
 │   ├── routes/                    usuarios · platos · pedidos · admin
 │   ├── seeders/                   Datos de demostración (contenido en datos/, fotos en fotos/)
 │   ├── uploads/platos/            Imágenes subidas por los vendedores
-│   ├── utils/                     Traducción de errores de la base y manejo de imágenes subidas
+│   ├── utils/                     Errores de la base, estadísticas de ventas e imágenes subidas
 │   ├── app.js                     Aplicación Express (la usan index.js y las pruebas)
 │   ├── index.js                   Arranque: conecta la base y escucha
 │   └── .env.example
 │
+├── e2e/                           Pruebas de punta a punta (Playwright)
+├── scripts/                       Instalador (npm run setup) y chequeo previo a npm run dev
+├── package.json                   Comandos del día a día: setup, dev, demo:reiniciar, test
+├── playwright.config.js           Puertos y base propios de las pruebas de punta a punta
+├── CHANGELOG.md                   Qué trae cada versión
 ├── CONTRIBUTING.md                Ramas, commits y pull requests
 └── PROJECT.md                     Estado del proyecto y traspaso
 ```
