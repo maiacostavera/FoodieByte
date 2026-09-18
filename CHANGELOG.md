@@ -3,6 +3,13 @@
 Qué trae cada versión de FoodieByte. El detalle de cada cambio está en su pull
 request y el porqué, en [`PROJECT.md`](PROJECT.md).
 
+## 1.0.1 · 18/09/2026
+
+- **La terminal de `npm run dev` ya no se llena de SQL.** La API muestra solo los
+  pedidos HTTP; para ver cada consulta, `DB_LOGGING=true` en `server/.env`. Lo
+  mismo en la salida del script de migración desde MySQL, que ahora se lee de un
+  vistazo.
+
 ## 1.0.0 · 18/09/2026
 
 Primera versión lista para presentar. Reúne las tres rondas de trabajo sobre el

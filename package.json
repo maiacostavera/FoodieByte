@@ -1,6 +1,6 @@
 {
   "name": "foodiebyte",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "FoodieByte: plataforma gastronómica con React, Express y PostgreSQL",
   "scripts": {
