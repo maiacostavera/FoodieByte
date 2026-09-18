@@ -22,6 +22,7 @@ const AppProvider = ({ children }) => {
     const [token, setToken] = useState(() => localStorage.getItem(CLAVE_TOKEN));
     const [carrito, setCarrito] = useState(() => leerJSON(CLAVE_CARRITO) || []);
     const [aviso, setAviso] = useState(null);
+    const [confirmacion, setConfirmacion] = useState(null);
 
     /** Muestra un mensaje temporal en pantalla (reemplaza a los alert()). */
     const mostrarAviso = useCallback((texto, tipo = 'info') => {
@@ -29,6 +30,20 @@ const AppProvider = ({ children }) => {
     }, []);
 
     const cerrarAviso = useCallback(() => setAviso(null), []);
+
+    /**
+     * Pide confirmación antes de una acción que no se puede deshacer y
+     * devuelve una promesa con la respuesta. Reemplaza a window.confirm():
+     *   if (!(await confirmar({ titulo, mensaje, textoConfirmar }))) return;
+     */
+    const confirmar = useCallback((opciones) => new Promise((resolve) => {
+        setConfirmacion({ ...opciones, resolve });
+    }), []);
+
+    const responderConfirmacion = useCallback((respuesta) => {
+        confirmacion?.resolve(respuesta);
+        setConfirmacion(null);
+    }, [confirmacion]);
 
     const login = useCallback((datosUsuario, tokenRecibido) => {
         localStorage.setItem(CLAVE_TOKEN, tokenRecibido);
@@ -80,6 +95,7 @@ const AppProvider = ({ children }) => {
                     nombre: data.nombre,
                     rol: data.rol,
                     email: data.email,
+                    nombre_local: data.nombre_local,
                     solicitud_vendedor: Boolean(data.solicitud_vendedor)
                 });
             })
@@ -93,7 +109,8 @@ const AppProvider = ({ children }) => {
         localStorage.setItem(CLAVE_CARRITO, JSON.stringify(carrito));
     }, [carrito]);
 
-    const agregarAlCarrito = useCallback((plato, cantidadSeleccionada = 1) => {
+    // avisar en false para no mostrar un aviso por cada + del carrito.
+    const agregarAlCarrito = useCallback((plato, cantidadSeleccionada = 1, avisar = true) => {
         const existente = carrito.find(item => item.id === plato.id);
         const yaEnCarrito = existente ? existente.cantidad : 0;
         const stockDisponible = Number(plato.stock ?? 0);
@@ -117,7 +134,7 @@ const AppProvider = ({ children }) => {
             }
             return [...prev, { ...plato, cantidad: cantidadSeleccionada }];
         });
-        mostrarAviso(`"${plato.nombre}" se agregó al carrito.`, 'exito');
+        if (avisar) mostrarAviso(`"${plato.nombre}" se agregó al carrito.`, 'exito');
     }, [carrito, mostrarAviso]);
 
     const disminuirDelCarrito = useCallback((id) => {
@@ -173,13 +190,15 @@ const AppProvider = ({ children }) => {
         carrito, totalCarrito, cantidadEnCarrito,
         agregarAlCarrito, eliminarDelCarrito, disminuirDelCarrito, vaciarCarrito,
         enviarPedidoAlServidor,
-        aviso, mostrarAviso, cerrarAviso
+        aviso, mostrarAviso, cerrarAviso,
+        confirmacion, confirmar, responderConfirmacion
     }), [
         usuario, token, login, logout, actualizarUsuario,
         carrito, totalCarrito, cantidadEnCarrito,
         agregarAlCarrito, eliminarDelCarrito, disminuirDelCarrito, vaciarCarrito,
         enviarPedidoAlServidor,
-        aviso, mostrarAviso, cerrarAviso
+        aviso, mostrarAviso, cerrarAviso,
+        confirmacion, confirmar, responderConfirmacion
     ]);
 
     return <FoodieContext.Provider value={valor}>{children}</FoodieContext.Provider>;

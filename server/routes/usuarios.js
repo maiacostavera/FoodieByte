@@ -108,7 +108,9 @@ router.post('/login', async (req, res) => {
         id: usuario.id,
         email: usuario.email,
         rol: usuario.rol,
-        nombre: usuario.nombre
+        nombre: usuario.nombre,
+        nombre_local: usuario.nombre_local,
+        solicitud_vendedor: usuario.solicitud_vendedor
       }
     });
   } catch (err) {
@@ -121,7 +123,7 @@ router.post('/login', async (req, res) => {
 router.get('/perfil', autenticar, async (req, res) => {
   try {
     const usuario = await Usuario.findByPk(req.usuario.id, {
-      attributes: ['id', 'nombre', 'email', 'rol', 'solicitud_vendedor']
+      attributes: ['id', 'nombre', 'email', 'rol', 'solicitud_vendedor', 'nombre_local']
     });
     if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
     res.json(usuario);

@@ -1,26 +1,14 @@
-:root {
-  font-family: 'Poppins', sans-serif;
-  background-color: #f9f9f9;
-  /* Obligamos a que el fondo sea blanco desde la raíz */
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html,
-body {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  background-color: #f9f9f9;
-  overflow-x: hidden;
-  /* Evita que la página se mueva de costado */
-}
-
-#root {
-  width: 100%;
-}
+/*
+ * Estilos de FoodieByte, separados por tema:
+ *   base.css         variables de diseño (colores, radios, sombras) y estilos generales
+ *   componentes.css  piezas reutilizables: botones, campos, modales, etiquetas, tablas…
+ *   paginas.css      barra superior, portada, catálogo, ficha, carrito, pedidos, acceso y pie
+ *   panel.css        panel de gestión del local y del administrador
+ *
+ * Los componentes usan clases de estos archivos en lugar de estilos en línea:
+ * así pueden tener :hover, :focus-visible, transiciones y diseño responsive.
+ */
+@import './estilos/base.css';
+@import './estilos/componentes.css';
+@import './estilos/paginas.css';
+@import './estilos/panel.css';

@@ -1,0 +1,603 @@
+/* ==========================================================================
+   Panel de gestión (local y administrador)
+   ========================================================================== */
+
+.panel {
+  padding-block: 32px 72px;
+}
+
+.panel__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.panel__saludo {
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 800;
+}
+
+.panel__rol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--texto-2);
+}
+
+.panel__pestanas {
+  margin-bottom: 26px;
+}
+
+.panel__seccion + .panel__seccion {
+  margin-top: 32px;
+}
+
+/* Indicadores */
+.grilla-kpi {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px;
+}
+
+.kpi__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--texto-2);
+}
+
+.kpi__icono {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--superficie-2);
+  color: var(--texto-2);
+}
+
+.kpi--primario .kpi__icono {
+  background: var(--primario-suave);
+  color: var(--primario);
+}
+
+.kpi--exito .kpi__icono {
+  background: var(--exito-suave);
+  color: var(--exito);
+}
+
+.kpi--alerta .kpi__icono {
+  background: var(--alerta-suave);
+  color: var(--alerta);
+}
+
+.kpi--info .kpi__icono {
+  background: var(--info-suave);
+  color: var(--info);
+}
+
+.kpi__valor {
+  font-size: clamp(1.45rem, 2.2vw, 1.85rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.kpi__detalle {
+  font-size: 0.8rem;
+  color: var(--texto-3);
+}
+
+/* Con seis indicadores (administrador) van en dos filas de tres. */
+@media (min-width: 900px) {
+  .grilla-kpi--seis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.grilla-resumen {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  margin-top: 16px;
+}
+
+@media (min-width: 1000px) {
+  .grilla-resumen {
+    grid-template-columns: 1.75fr 1fr;
+  }
+}
+
+.bloque {
+  padding: 22px;
+  min-width: 0;
+}
+
+.bloque__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.bloque__titulo {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.bloque__subtitulo {
+  font-size: 0.84rem;
+  color: var(--texto-3);
+}
+
+.bloque__destacado {
+  font-size: 1.45rem;
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gráfico de ventas por día */
+.grafico {
+  position: relative;
+}
+
+.grafico svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.grafico__grilla {
+  stroke: var(--borde);
+  stroke-width: 1;
+}
+
+.grafico__base {
+  stroke: var(--borde-fuerte);
+  stroke-width: 1;
+}
+
+.grafico__eje {
+  fill: var(--texto-3);
+  font-family: var(--fuente);
+  font-size: 11px;
+}
+
+.grafico__eje--hoy {
+  fill: var(--texto);
+  font-weight: 600;
+}
+
+.grafico__barra {
+  fill: var(--primario);
+  opacity: 0.78;
+  transition: opacity var(--rapido), fill var(--rapido);
+}
+
+.grafico__barra--hoy {
+  opacity: 1;
+}
+
+.grafico__objetivo {
+  fill: transparent;
+  cursor: default;
+}
+
+.grafico__grupo:hover .grafico__barra,
+.grafico__grupo:focus .grafico__barra {
+  opacity: 1;
+  fill: var(--primario-hover);
+}
+
+.grafico__grupo:focus {
+  outline: none;
+}
+
+.grafico__grupo:focus-visible .grafico__objetivo {
+  stroke: var(--anillo-foco);
+  stroke-width: 3;
+}
+
+.grafico__tooltip {
+  position: absolute;
+  z-index: 2;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: var(--oscuro);
+  color: #fff;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  box-shadow: var(--sombra-2);
+  transform: translate(-50%, calc(-100% - 10px));
+  pointer-events: none;
+}
+
+.grafico__tooltip strong {
+  display: block;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ranking de platos */
+.ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.ranking__fila {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.ranking__posicion {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--texto-3);
+}
+
+.ranking__nombre {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.ranking__local {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: var(--texto-3);
+}
+
+.ranking__unidades {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking__barra {
+  grid-column: 2 / 4;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radio-pildora);
+  background: var(--superficie-2);
+}
+
+.ranking__barra span {
+  display: block;
+  height: 100%;
+  border-radius: var(--radio-pildora);
+  background: var(--primario);
+}
+
+/* Alertas de stock */
+.lista-alertas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.lista-alertas li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+/* Comandas */
+.comandas-pendientes {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.comanda {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 18px 18px 20px;
+  border-left: 4px solid var(--alerta);
+}
+
+.comanda__cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.comanda__numero {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.comanda__cliente {
+  font-size: 0.88rem;
+  color: var(--texto-2);
+}
+
+.comanda__tiempo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--alerta);
+}
+
+.comanda__items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 12px 0;
+  border-block: 1px dashed var(--borde-fuerte);
+  list-style: none;
+  font-size: 0.92rem;
+}
+
+.comanda__items strong {
+  display: inline-block;
+  min-width: 30px;
+}
+
+.comanda__pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.comanda__monto {
+  font-size: 1.12rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.comanda__acciones {
+  display: flex;
+  gap: 8px;
+}
+
+/* Barras de herramientas sobre las tablas */
+.barra-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.barra-herramientas .buscador {
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+}
+
+.barra-herramientas__grupo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.celda-principal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.celda-principal img {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.celda-principal strong {
+  display: block;
+  font-weight: 600;
+}
+
+.celda-principal > div > span {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--texto-3);
+}
+
+.acciones-fila {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pie-tabla {
+  display: flex;
+  justify-content: center;
+  padding-top: 16px;
+}
+
+/* Solicitudes de alta de local */
+.solicitudes {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  margin-bottom: 28px;
+}
+
+.solicitud {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 18px 18px 20px;
+  border-left: 4px solid var(--info);
+}
+
+.solicitud__cabecera {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.solicitud__local {
+  font-weight: 700;
+}
+
+.solicitud__detalle {
+  font-size: 0.84rem;
+  color: var(--texto-3);
+}
+
+.solicitud__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.datos-solicitud {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.datos-solicitud dt {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--texto-3);
+}
+
+.datos-solicitud dd {
+  margin: 4px 0 0;
+}
+
+.datos-solicitud__ancho {
+  grid-column: 1 / -1;
+}
+
+/* Formulario de plato */
+.selector-imagen {
+  display: grid;
+  grid-template-columns: 128px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border: 1px dashed var(--borde-fuerte);
+  border-radius: var(--radio);
+  background: #fcfbf9;
+}
+
+.selector-imagen__vista {
+  width: 128px;
+  height: 96px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: var(--superficie-2);
+  color: var(--texto-3);
+}
+
+.selector-imagen input[type='file'] {
+  max-width: 100%;
+  font-size: 0.86rem;
+  color: var(--texto-2);
+}
+
+.selector-imagen input[type='file']::file-selector-button {
+  margin-right: 12px;
+  padding: 8px 16px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: var(--radio-pildora);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--rapido);
+}
+
+.selector-imagen input[type='file']::file-selector-button:hover {
+  border-color: var(--texto-3);
+}
+
+@media (max-width: 480px) {
+  .selector-imagen {
+    grid-template-columns: 1fr;
+  }
+}
+
+.interruptores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.interruptor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 15px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: var(--radio-pildora);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--rapido), background-color var(--rapido), color var(--rapido);
+}
+
+.interruptor:has(input:checked) {
+  border-color: var(--exito);
+  background: var(--exito-suave);
+  color: var(--exito);
+}
+
+.interruptor input {
+  accent-color: var(--exito);
+}
+
+.bloque__cabecera--separada {
+  margin-top: 28px;
+  margin-bottom: 12px;
+}
+
+.celda-principal strong .etiqueta {
+  margin-left: 8px;
+  vertical-align: 2px;
+}

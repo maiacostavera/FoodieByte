@@ -594,7 +594,8 @@ FoodieByte/
 │       ├── api/client.js          Axios: URL base, token y sesión vencida
 │       ├── utils/                 Imágenes, formato de precios y límites de formularios
 │       ├── state/                 Context de sesión y carrito
-│       └── components/admin/      Piezas del panel de gestión
+│       ├── estilos/               CSS con variables de diseño (colores, radios, sombras)
+│       └── components/panel/      Panel de gestión del local y del administrador
 │
 └── server/                        Node + Express + Sequelize
     ├── app.js                     Aplicación Express (la usan index.js y las pruebas)
