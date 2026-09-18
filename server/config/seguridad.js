@@ -18,5 +18,12 @@ module.exports = {
   JWT_SECRET: JWT_SECRET || 'foodiebyte-desarrollo-inseguro',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
   COMISION_PLATAFORMA: Number(process.env.COMISION_PLATAFORMA) || 0.05,
-  ROLES: { FOODIE: 'foodie', VENDEDOR: 'vendedor', ADMIN: 'admin' }
+  ROLES: { FOODIE: 'foodie', VENDEDOR: 'vendedor', ADMIN: 'admin' },
+  // Límites contra la fuerza bruta (ver middleware/limitarIntentos.js).
+  LIMITE_DE_INTENTOS: {
+    // Intentos fallidos de login por correo e IP antes de responder 429.
+    login: { minutos: 15, fallidos: 10 },
+    // Cuentas nuevas por IP.
+    registro: { minutos: 60, maximo: 20 }
+  }
 };

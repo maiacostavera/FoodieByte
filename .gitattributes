@@ -1,0 +1,11 @@
+# Todo archivo de texto se guarda con fin de línea LF, sin importar el sistema
+# operativo ni el core.autocrlf de cada persona. Evita diffs en los que
+# "cambia todo el archivo" sin ningún cambio real.
+* text=auto eol=lf
+
+# Binarios: nunca se convierten.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.ico  binary

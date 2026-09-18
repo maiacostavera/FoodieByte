@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  api:
+    name: API · pruebas de integración
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: foodiebyte_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: server
+
+    # Sin archivo .env: la configuración llega por variables de entorno.
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME_TEST: foodiebyte_test
+      JWT_SECRET: clave-exclusiva-del-ci-no-usar-en-produccion
+      COMISION_PLATAFORMA: '0.05'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+
+      # pretest aplica las migraciones a la base de pruebas antes de correrlas.
+      - run: npm test
+
+  web:
+    name: Frontend · lint y build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  instalacion:
+    name: Instalación desde cero · npm run setup
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # El mismo camino que sigue quien clona el repositorio: sin .env, sin
+      # dependencias y sin bases. La contraseña llega por variable porque en
+      # el CI no hay nadie para escribirla.
+      - name: npm run setup
+        run: npm run setup
+        env:
+          DB_PASSWORD: postgres
+
+      - name: La API arranca con la configuración generada y sirve la demo
+        run: |
+          npm --prefix server start > api.log 2>&1 &
+          for intento in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/api/health > /dev/null && break
+            sleep 1
+          done
+          platos=$(curl -sf http://127.0.0.1:3000/api/platos | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).length))")
+          echo "Platos en el catálogo: $platos"
+          if [ "$platos" != "45" ]; then cat api.log; exit 1; fi
+
+      - name: npm run setup se puede repetir sin romper nada
+        run: npm run setup
+        env:
+          DB_PASSWORD: postgres
+
+  e2e:
+    name: Pruebas de punta a punta · Playwright
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Deja dependencias y .env listos; la base de las pruebas la arma Playwright.
+      - name: npm run setup
+        run: npm run setup
+        env:
+          DB_PASSWORD: postgres
+
+      - name: Navegador para las pruebas
+        run: npx playwright install --with-deps chromium
+
+      - name: npm run test:e2e
+        run: npm run test:e2e
+
+      - name: Reporte de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-playwright
+          path: playwright-report/
+          retention-days: 7

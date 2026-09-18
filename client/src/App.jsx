@@ -1,258 +1,352 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from './api/client';
 import { useFoodie } from './state/FoodieContext';
+import { useRuta, navegar, RUTAS } from './utils/rutas';
 import { imagenDelPlato } from './utils/imagenes';
 
 import Navbar from './components/Navbar';
 import Banner from './components/Banner';
-import Aviso from './components/Aviso';
-import AdminPanel from './components/AdminPanel';
-import AdminDashboard from './components/AdminDashboard';
-import Footer from './components/Footer';
+import Catalogo from './components/Catalogo';
 import DetalleProducto from './components/DetalleProducto';
 import MisPedidos from './components/MisPedidos';
+import PanelAcceso from './components/PanelAcceso';
 import Login from './components/Login';
 import Signup from './components/Signup';
 import Carrito from './components/Carrito';
+import SolicitudLocal from './components/SolicitudLocal';
+import PaginasInfo from './components/PaginasInfo';
+import Footer from './components/Footer';
+import Aviso from './components/Aviso';
+import Confirmacion from './components/Confirmacion';
+import Icono from './components/Icono';
+import PanelGestion from './components/panel/PanelGestion';
 
-const formatearMoneda = (valor) =>
-    `$${Number(valor || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Si la API todavía no terminó de arrancar (pasa justo después de npm run
+// dev), el catálogo se vuelve a pedir solo cada 3 segundos, hasta 10 veces.
+const REINTENTOS = { cada: 3000, maximo: 10 };
+
+const irAlCatalogo = () => setTimeout(() => {
+    document.getElementById('catalogo-menu')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}, 60);
 
 function App() {
-    const { usuario, logout, agregarAlCarrito, cantidadEnCarrito, mostrarAviso } = useFoodie();
+    const { usuario, logout, agregarAlCarrito, mostrarAviso } = useFoodie();
+    const ruta = useRuta();
+    const esGestor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin';
 
-    const [busqueda, setBusqueda] = useState('');
-    const [platos, setPlatos] = useState([]);
+    // Catálogo completo: da los locales, las cifras de la portada y las fichas.
+    const [catalogo, setCatalogo] = useState([]);
+    const [estadoCatalogo, setEstadoCatalogo] = useState('cargando');
+    const [versionCatalogo, setVersionCatalogo] = useState(0);
     const [categorias, setCategorias] = useState([]);
+
+    // Filtros del catálogo. La búsqueda y la categoría las resuelve el servidor.
+    const [busqueda, setBusqueda] = useState('');
     const [categoriaActiva, setCategoriaActiva] = useState('Todos');
-    const [cargando, setCargando] = useState(true);
-    // Se incrementa cuando el panel cambia datos, para que el resumen del
-    // vendedor vuelva a consultar sus cifras al servidor.
-    const [versionDatos, setVersionDatos] = useState(0);
+    const [localActivo, setLocalActivo] = useState(null);
+    const [orden, setOrden] = useState('recomendados');
+    const [resultados, setResultados] = useState(null);
 
-    const [verAdmin, setVerAdmin] = useState(false);
-    const [verMisPedidos, setVerMisPedidos] = useState(false);
-    const [verCarrito, setVerCarrito] = useState(false);
-    const [platoSeleccionado, setPlatoSeleccionado] = useState(null);
-    const [mostrarAuth, setMostrarAuth] = useState(false);
-    const [vistaAuth, setVistaAuth] = useState('login');
+    // El carrito queda abierto solo en la pantalla donde se abrió: si se navega
+    // (por ejemplo, con el botón atrás), se cierra solo.
+    const claveDeRuta = `${ruta.seccion}/${ruta.id ?? ''}`;
+    const [carritoAbiertoEn, setCarritoAbiertoEn] = useState(null);
+    const verCarrito = carritoAbiertoEn === claveDeRuta;
+    const [verSolicitud, setVerSolicitud] = useState(false);
+    const [paginaInfo, setPaginaInfo] = useState(null);
+    const [emailParaIngresar, setEmailParaIngresar] = useState('');
+    const [versionPedidos, setVersionPedidos] = useState(0);
 
-    // La lista de categorías la define el backend: antes estaba escrita a mano
-    // en tres archivos distintos y se habían desincronizado entre sí.
+    // A dónde volver después de iniciar sesión, y dónde estaba el scroll de la portada.
+    const volverTrasIngresar = useRef(null);
+    const scrollDelInicio = useRef(0);
+
+    // --- Datos -----------------------------------------------------------------
+
+    const cargarCatalogo = useCallback(async () => {
+        try {
+            const { data } = await api.get('/platos');
+            setCatalogo(data);
+            setEstadoCatalogo('listo');
+            return true;
+        } catch {
+            setEstadoCatalogo('error');
+            return false;
+        }
+    }, []);
+
+    useEffect(() => {
+        let intentos = 0;
+        let temporizador;
+        let activo = true;
+        const intentar = async () => {
+            const cargo = await cargarCatalogo();
+            if (!cargo && activo && ++intentos < REINTENTOS.maximo) temporizador = setTimeout(intentar, REINTENTOS.cada);
+        };
+        intentar();
+        return () => {
+            activo = false;
+            clearTimeout(temporizador);
+        };
+    }, [cargarCatalogo, versionCatalogo]);
+
+    // La lista de categorías la define el backend: una sola fuente de verdad.
     useEffect(() => {
         api.get('/platos/categorias')
             .then(({ data }) => setCategorias(data))
             .catch(() => setCategorias([]));
-    }, []);
+    }, [versionCatalogo]);
+
+    const refrescarCatalogo = useCallback(() => setVersionCatalogo(v => v + 1), []);
+
+    const textoBuscado = busqueda.trim();
+    const filtraServidor = textoBuscado !== '' || categoriaActiva !== 'Todos';
+    // Identifica la consulta: una respuesta vieja nunca pisa a la búsqueda actual.
+    const claveDeBusqueda = JSON.stringify([textoBuscado.toLowerCase(), categoriaActiva, versionCatalogo]);
 
     useEffect(() => {
-        if (usuario) setMostrarAuth(false);
-    }, [usuario]);
+        if (!filtraServidor) return;
+        const controlador = new AbortController();
+        // Se espacian las pulsaciones para no disparar una consulta por cada tecla.
+        const temporizador = setTimeout(async () => {
+            try {
+                const params = {};
+                if (textoBuscado) params.busqueda = textoBuscado;
+                if (categoriaActiva !== 'Todos') params.categoria = categoriaActiva;
+                const { data } = await api.get('/platos', { params, signal: controlador.signal });
+                setResultados({ clave: claveDeBusqueda, platos: data });
+            } catch (err) {
+                if (err.code === 'ERR_CANCELED') return;
+                setResultados({ clave: claveDeBusqueda, platos: [], error: true });
+            }
+        }, 300);
+        return () => {
+            clearTimeout(temporizador);
+            controlador.abort();
+        };
+    }, [claveDeBusqueda, filtraServidor, textoBuscado, categoriaActiva]);
 
-    const buscarPlatos = useCallback(async (texto, categoria) => {
-        setCargando(true);
-        try {
-            const params = {};
-            if (texto && texto.trim() !== '') params.busqueda = texto.trim();
-            if (categoria && categoria !== 'Todos') params.categoria = categoria;
+    const resultadosVigentes = resultados?.clave === claveDeBusqueda ? resultados : null;
 
-            const { data } = await api.get('/platos', { params });
-            setPlatos(data);
-        } catch {
-            mostrarAviso('No se pudo cargar el menú. Verificá que el servidor esté corriendo.', 'error');
-        } finally {
-            setCargando(false);
+    const locales = useMemo(() => {
+        const porLocal = new Map();
+        for (const plato of catalogo) {
+            const vendedor = plato.vendedor;
+            if (!vendedor) continue;
+            if (!porLocal.has(vendedor.id)) {
+                porLocal.set(vendedor.id, {
+                    id: vendedor.id,
+                    nombre: vendedor.nombre_local || vendedor.nombre,
+                    foto: imagenDelPlato(plato.categoria, plato.imagenUrl),
+                    cantidad: 0,
+                    categorias: new Map()
+                });
+            }
+            const local = porLocal.get(vendedor.id);
+            local.cantidad += 1;
+            local.categorias.set(plato.categoria, (local.categorias.get(plato.categoria) || 0) + 1);
         }
+        // La categoría que se muestra de cada local es la de la mayoría de sus platos.
+        return [...porLocal.values()].map(({ categorias: conteo, ...local }) => ({
+            ...local,
+            categoria: [...conteo.entries()].sort((a, b) => b[1] - a[1])[0][0]
+        }));
+    }, [catalogo]);
+
+    const platosVisibles = useMemo(() => {
+        let lista = filtraServidor ? (resultadosVigentes?.platos || []) : catalogo;
+        if (localActivo) lista = lista.filter(plato => plato.vendedor?.id === localActivo);
+        const ordenados = [...lista];
+        if (orden === 'precio-asc') ordenados.sort((a, b) => a.precio - b.precio);
+        if (orden === 'precio-desc') ordenados.sort((a, b) => b.precio - a.precio);
+        if (orden === 'nombre') ordenados.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+        return ordenados;
+    }, [filtraServidor, resultadosVigentes, catalogo, localActivo, orden]);
+
+    // --- Navegación --------------------------------------------------------------
+
+    // Al volver a la portada, el scroll queda donde estaba; en el resto, arriba.
+    useEffect(() => {
+        window.scrollTo(0, ruta.seccion === 'inicio' ? scrollDelInicio.current : 0);
+    }, [ruta.seccion, ruta.id]);
+
+    useEffect(() => {
+        if (ruta.seccion !== 'inicio') return;
+        const guardar = () => { scrollDelInicio.current = window.scrollY; };
+        window.addEventListener('scroll', guardar, { passive: true });
+        return () => window.removeEventListener('scroll', guardar);
+    }, [ruta.seccion]);
+
+    // Pantallas que dependen de la sesión.
+    useEffect(() => {
+        if (ruta.seccion === 'pedidos' && !usuario) {
+            volverTrasIngresar.current = RUTAS.pedidos;
+            navegar(RUTAS.ingresar);
+        }
+        if (ruta.seccion === 'panel' && !esGestor) {
+            if (!usuario) volverTrasIngresar.current = RUTAS.panel;
+            navegar(usuario ? RUTAS.inicio : RUTAS.ingresar);
+        }
+        if ((ruta.seccion === 'ingresar' || ruta.seccion === 'registro') && usuario) {
+            const destino = volverTrasIngresar.current || (esGestor ? RUTAS.panel : RUTAS.inicio);
+            volverTrasIngresar.current = null;
+            navegar(destino);
+        }
+    }, [ruta.seccion, usuario, esGestor]);
+
+    const pedirIngreso = useCallback((mensaje) => {
+        if (mensaje) mostrarAviso(mensaje, 'info');
+        volverTrasIngresar.current = window.location.hash || RUTAS.inicio;
+        navegar(RUTAS.ingresar);
     }, [mostrarAviso]);
 
-    // El filtrado lo hace el servidor; acá solo se espacian las pulsaciones
-    // para no disparar una consulta por cada tecla.
-    useEffect(() => {
-        const temporizador = setTimeout(() => buscarPlatos(busqueda, categoriaActiva), 300);
-        return () => clearTimeout(temporizador);
-    }, [busqueda, categoriaActiva, buscarPlatos]);
-
-    const volverAlInicio = () => {
-        setMostrarAuth(false);
-        setVerAdmin(false);
-        setVerMisPedidos(false);
-        setPlatoSeleccionado(null);
+    const irAlInicio = () => {
+        scrollDelInicio.current = 0;
+        navegar(RUTAS.inicio);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const manejarIntencionCompra = (accion, parametro = null) => {
+    const verMenu = () => {
+        setCarritoAbiertoEn(null);
+        navegar(RUTAS.inicio);
+        irAlCatalogo();
+    };
+
+    const buscar = (texto) => {
+        setBusqueda(texto);
+        if (ruta.seccion !== 'inicio') verMenu();
+    };
+
+    const elegirCategoria = (categoria) => {
+        setCategoriaActiva(categoria);
+        setLocalActivo(null);
+        if (ruta.seccion !== 'inicio') verMenu();
+        else irAlCatalogo();
+    };
+
+    const quitarFiltros = () => {
+        setBusqueda('');
+        setCategoriaActiva('Todos');
+        setLocalActivo(null);
+    };
+
+    const agregar = (plato, cantidad = 1) => {
         if (!usuario) {
-            mostrarAviso('Para ver el detalle o armar tu pedido, iniciá sesión primero.', 'info');
-            setVistaAuth('login');
-            setMostrarAuth(true);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            pedirIngreso('Para armar tu pedido, ingresá a tu cuenta.');
             return;
         }
-        if (accion === 'detalle') setPlatoSeleccionado(parametro);
-        else if (accion === 'agregar') agregarAlCarrito(parametro);
+        agregarAlCarrito(plato, cantidad);
     };
 
-    const esGestor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin';
-    const enPortada = !mostrarAuth && !verAdmin && !verMisPedidos && !platoSeleccionado;
+    const quererVender = () => {
+        if (!usuario) {
+            pedirIngreso('Para vender en FoodieByte, primero ingresá o creá tu cuenta.');
+            return;
+        }
+        if (usuario.solicitud_vendedor) {
+            mostrarAviso('Tu solicitud está en revisión: cuando la aprueben, vas a ver el panel de tu local.', 'info');
+            return;
+        }
+        setVerSolicitud(true);
+    };
+
+    const alConfirmarCompra = () => {
+        // La compra descontó stock: el catálogo se vuelve a pedir.
+        refrescarCatalogo();
+        setCarritoAbiertoEn(null);
+        setVersionPedidos(v => v + 1);
+        navegar(RUTAS.pedidos);
+    };
+
+    const cerrarSesion = () => {
+        logout();
+        setCarritoAbiertoEn(null);
+        navegar(RUTAS.inicio);
+    };
+
+    // --- Pantalla actual -----------------------------------------------------------
+
+    const renderizarPantalla = () => {
+        switch (ruta.seccion) {
+            case 'plato': {
+                if (estadoCatalogo === 'cargando') {
+                    return <div className="contenedor pagina"><div className="esqueleto esqueleto--ficha" /></div>;
+                }
+                const plato = catalogo.find(p => p.id === ruta.id);
+                if (!plato) {
+                    return (
+                        <div className="contenedor pagina">
+                            <div className="vacio tarjeta">
+                                <span className="vacio__icono"><Icono nombre="plato" tamano={26} /></span>
+                                <p className="vacio__titulo">Este plato ya no está disponible</p>
+                                <p>Puede que el local lo haya sacado del menú.</p>
+                                <button type="button" className="boton boton--oscuro" onClick={verMenu}>Ver el menú</button>
+                            </div>
+                        </div>
+                    );
+                }
+                const relacionados = catalogo
+                    .filter(otro => otro.id !== plato.id && otro.vendedor?.id === plato.vendedor?.id)
+                    .slice(0, 4);
+                return (
+                    <DetalleProducto key={plato.id} plato={plato} usuario={usuario} relacionados={relacionados}
+                        alVolver={() => navegar(RUTAS.inicio)} alAgregar={agregar} alPedirIngreso={pedirIngreso}
+                        alAbrirPlato={(otro) => navegar(RUTAS.plato(otro.id))} alCambiarCatalogo={refrescarCatalogo} />
+                );
+            }
+            case 'pedidos':
+                return usuario ? <MisPedidos key={versionPedidos} alVerMenu={verMenu} /> : null;
+            case 'panel':
+                return esGestor ? <PanelGestion categorias={categorias} alCambiarCatalogo={refrescarCatalogo} /> : null;
+            case 'ingresar':
+                return usuario ? null : <PanelAcceso><Login key={emailParaIngresar} emailInicial={emailParaIngresar} /></PanelAcceso>;
+            case 'registro':
+                return usuario ? null : (
+                    <PanelAcceso>
+                        <Signup
+                            alRegistrarse={(email) => { setEmailParaIngresar(email); navegar(RUTAS.ingresar); }}
+                            alVerTerminos={() => setPaginaInfo('terminos')} />
+                    </PanelAcceso>
+                );
+            default:
+                return (
+                    <>
+                        <Banner cantidadPlatos={catalogo.length} cantidadLocales={locales.length}
+                            cantidadCategorias={categorias.length} alVerMenu={irAlCatalogo}
+                            alQuererVender={quererVender} mostrarVender={!esGestor} />
+                        <Catalogo
+                            platos={platosVisibles}
+                            cargando={filtraServidor ? !resultadosVigentes : estadoCatalogo === 'cargando'}
+                            error={filtraServidor ? Boolean(resultadosVigentes?.error) : estadoCatalogo === 'error'}
+                            alReintentar={() => { setEstadoCatalogo('cargando'); refrescarCatalogo(); }}
+                            categorias={categorias} categoriaActiva={categoriaActiva}
+                            alElegirCategoria={(categoria) => { setCategoriaActiva(categoria); setLocalActivo(null); }}
+                            locales={locales} localActivo={localActivo} alElegirLocal={setLocalActivo}
+                            orden={orden} alOrdenar={setOrden} busqueda={busqueda} alQuitarFiltros={quitarFiltros}
+                            esGestor={esGestor} alAbrirPlato={(plato) => navegar(RUTAS.plato(plato.id))} alAgregar={agregar} />
+                    </>
+                );
+        }
+    };
 
     return (
-        <div style={estiloApp}>
+        <>
             <Aviso />
+            <Confirmacion />
 
-            <Navbar
-                nombreUsuario={usuario?.nombre}
-                rolUsuario={usuario?.rol}
-                categorias={categorias}
-                cerrarSesion={() => { logout(); volverAlInicio(); }}
-                abrirLogin={() => { setMostrarAuth(true); setVistaAuth('login'); }}
-                verAdmin={verAdmin}
-                setVerAdmin={(v) => { setVerAdmin(v); setMostrarAuth(false); setVerMisPedidos(false); setPlatoSeleccionado(null); }}
-                alVerPerfil={() => { setVerMisPedidos(true); setVerAdmin(false); setMostrarAuth(false); }}
-                abrirCarrito={() => setVerCarrito(true)}
-                busqueda={busqueda}
-                setBusqueda={setBusqueda}
-                ocultarBusqueda={mostrarAuth || verAdmin}
-                cantidadCarrito={cantidadEnCarrito}
-                irAlInicio={volverAlInicio}
-            />
+            <Navbar busqueda={busqueda} alBuscar={buscar} mostrarBuscador={['inicio', 'plato'].includes(ruta.seccion)}
+                alIrAlInicio={irAlInicio} alAbrirCarrito={() => setCarritoAbiertoEn(claveDeRuta)}
+                alCerrarSesion={cerrarSesion} alQuererVender={quererVender} />
 
-            {verCarrito && <Carrito alCerrar={() => setVerCarrito(false)} />}
+            <main className="principal">{renderizarPantalla()}</main>
 
-            {enPortada && <Banner />}
+            <Footer categorias={categorias} alElegirCategoria={elegirCategoria} alAbrirPagina={setPaginaInfo} />
 
-            <div style={estiloContenido}>
-                {mostrarAuth && !usuario ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
-                        {vistaAuth === 'login' ? (
-                            <Login alIrARegistro={() => setVistaAuth('registro')} alCerrar={() => setMostrarAuth(false)} />
-                        ) : (
-                            <Signup alIrALogin={() => setVistaAuth('login')} />
-                        )}
-                    </div>
-                ) : verAdmin && esGestor ? (
-                    <>
-                        {usuario.rol === 'vendedor' && <AdminDashboard version={versionDatos} />}
-                        <AdminPanel
-                            rol={usuario.rol}
-                            categorias={categorias}
-                            onRefreshPlatos={() => buscarPlatos(busqueda, categoriaActiva)}
-                            onDatosActualizados={() => setVersionDatos(v => v + 1)}
-                        />
-                    </>
-                ) : verMisPedidos && usuario ? (
-                    <MisPedidos alCerrar={() => setVerMisPedidos(false)} />
-                ) : platoSeleccionado && usuario ? (
-                    <DetalleProducto
-                        plato={platoSeleccionado}
-                        usuario={usuario}
-                        alCerrar={() => setPlatoSeleccionado(null)}
-                        alAgregar={agregarAlCarrito}
-                        onRefreshPlatos={() => buscarPlatos(busqueda, categoriaActiva)}
-                    />
-                ) : (
-                    <main id="catalogo-menu">
-                        <h3 style={estiloTituloMenu}>Explorar Menú</h3>
-
-                        <div style={estiloFiltros}>
-                            {['Todos', ...categorias].map(cat => (
-                                <button key={cat} onClick={() => setCategoriaActiva(cat)}
-                                    aria-pressed={categoriaActiva === cat}
-                                    style={{
-                                        ...estiloBotonFiltro,
-                                        backgroundColor: categoriaActiva === cat ? '#d32f2f' : '#ffffff',
-                                        color: categoriaActiva === cat ? '#ffffff' : '#424242',
-                                        boxShadow: categoriaActiva === cat ? '0 2px 8px rgba(211, 47, 47, 0.2)' : 'none'
-                                    }}>
-                                    {cat}
-                                </button>
-                            ))}
-                        </div>
-
-                        {cargando ? (
-                            <div style={estiloEstadoVacio}>
-                                <p style={{ fontSize: '1rem', fontWeight: '500' }}>Cargando platos…</p>
-                            </div>
-                        ) : platos.length === 0 ? (
-                            <div style={estiloEstadoVacio}>
-                                <p style={{ fontSize: '1.1rem', fontWeight: '500' }}>No se encontraron platos</p>
-                                <p style={{ fontSize: '0.9rem' }}>Probá con otra búsqueda o categoría</p>
-                            </div>
-                        ) : (
-                            <div style={estiloGrilla}>
-                                {platos.map(plato => (
-                                    <article key={plato.id} onClick={() => manejarIntencionCompra('detalle', plato)} style={estiloCard}>
-                                        <div style={estiloImagenCard}>
-                                            <img src={imagenDelPlato(plato.categoria, plato.imagenUrl)} alt={plato.nombre}
-                                                loading="lazy"
-                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        </div>
-
-                                        <div style={estiloCuerpoCard}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                                <h4 style={{ margin: 0, fontWeight: '600', color: '#212121', fontSize: '1.15rem' }}>{plato.nombre}</h4>
-                                                <span style={estiloBadgeNeutro}>{plato.categoria}</span>
-                                            </div>
-
-                                            {plato.vendedor && (
-                                                <p style={estiloLocal}>{plato.vendedor.nombre_local || plato.vendedor.nombre}</p>
-                                            )}
-
-                                            {plato.descripcion && (
-                                                <p style={estiloDescripcion}>{plato.descripcion}</p>
-                                            )}
-
-                                            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                                                {plato.es_vegano && <span style={estiloBadge}>Vegano</span>}
-                                                {plato.es_sintacc && <span style={estiloBadge}>Sin TACC</span>}
-                                                {plato.tiempo_prep && <span style={estiloBadgeNeutro}>{plato.tiempo_prep}</span>}
-                                                {plato.stock === 0 && <span style={estiloBadgeSinStock}>Sin stock</span>}
-                                            </div>
-
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                                                <p style={{ color: '#d32f2f', fontWeight: '700', fontSize: '1.25rem', margin: 0 }}>
-                                                    {formatearMoneda(plato.precio)}
-                                                </p>
-                                                {esGestor ? (
-                                                    <span style={{ fontSize: '0.85rem', color: '#757575', fontWeight: '500' }}>
-                                                        Stock: {plato.stock} un.
-                                                    </span>
-                                                ) : (
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); manejarIntencionCompra('agregar', plato); }}
-                                                        disabled={plato.stock === 0}
-                                                        style={{ ...estiloBotonAgregar, opacity: plato.stock === 0 ? 0.5 : 1, cursor: plato.stock === 0 ? 'not-allowed' : 'pointer' }}>
-                                                        {plato.stock === 0 ? 'Agotado' : 'Añadir'}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </article>
-                                ))}
-                            </div>
-                        )}
-                    </main>
-                )}
-            </div>
-
-            <Footer />
-        </div>
+            {verCarrito && <Carrito alCerrar={() => setCarritoAbiertoEn(null)} alConfirmarCompra={alConfirmarCompra} alVerMenu={verMenu} />}
+            {verSolicitud && <SolicitudLocal categorias={categorias} alCerrar={() => setVerSolicitud(false)} />}
+            {paginaInfo && <PaginasInfo pagina={paginaInfo} alCerrar={() => setPaginaInfo(null)} />}
+        </>
     );
 }
-
-const estiloApp = { backgroundColor: '#fdfdfd', minHeight: '100vh', fontFamily: "'Poppins', sans-serif", display: 'flex', flexDirection: 'column' };
-const estiloContenido = { flex: 1, maxWidth: '1250px', width: '100%', margin: '0 auto', padding: '40px 20px' };
-const estiloTituloMenu = { fontWeight: '600', marginBottom: '24px', color: '#212121', fontSize: '1.5rem' };
-const estiloFiltros = { display: 'flex', gap: '10px', marginBottom: '40px', overflowX: 'auto', paddingBottom: '10px' };
-const estiloBotonFiltro = { padding: '10px 24px', borderRadius: '4px', border: '1px solid #e0e0e0', fontWeight: '500', cursor: 'pointer', transition: 'all 0.2s ease', fontFamily: "'Poppins', sans-serif", whiteSpace: 'nowrap' };
-const estiloEstadoVacio = { textAlign: 'center', padding: '60px 0', color: '#757575' };
-const estiloGrilla = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '32px' };
-const estiloCard = { backgroundColor: '#ffffff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', border: '1px solid #e0e0e0', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", display: 'flex', flexDirection: 'column' };
-const estiloImagenCard = { height: '200px', overflow: 'hidden', backgroundColor: '#f9f9f9', borderBottom: '1px solid #eeeeee', display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const estiloCuerpoCard = { padding: '24px', display: 'flex', flexDirection: 'column', flex: 1 };
-const estiloLocal = { fontSize: '0.82rem', color: '#9e9e9e', margin: '0 0 12px 0', fontWeight: '500' };
-const estiloDescripcion = { fontSize: '0.9rem', color: '#757575', margin: '0 0 20px 0', lineHeight: '1.5' };
-const estiloBotonAgregar = { backgroundColor: '#d32f2f', color: '#ffffff', border: 'none', padding: '8px 20px', borderRadius: '4px', fontWeight: '600', fontFamily: "'Poppins', sans-serif", boxShadow: '0 2px 6px rgba(211, 47, 47, 0.25)' };
-const estiloBadge = { padding: '3px 10px', backgroundColor: '#e8f5e9', color: '#2e7d32', borderRadius: '3px', fontSize: '0.75rem', fontWeight: '600' };
-const estiloBadgeNeutro = { padding: '3px 10px', backgroundColor: '#f5f5f5', color: '#757575', borderRadius: '3px', fontSize: '0.75rem', fontWeight: '500', whiteSpace: 'nowrap', marginLeft: '8px' };
-const estiloBadgeSinStock = { padding: '3px 10px', backgroundColor: '#ffebee', color: '#c62828', borderRadius: '3px', fontSize: '0.75rem', fontWeight: '600' };
 
 export default App;
