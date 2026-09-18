@@ -1337,3 +1337,35 @@
 ul.panel-lateral__cuerpo {
   list-style: none;
 }
+
+/* Datos de entrega en el carrito y en el historial */
+.entrega {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.entrega__pago {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--texto-3);
+}
+
+.pedido__entrega {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 20px 0;
+  font-size: 0.86rem;
+  color: var(--texto-2);
+}
+
+.pedido__entrega svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}

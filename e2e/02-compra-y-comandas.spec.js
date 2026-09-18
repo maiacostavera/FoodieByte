@@ -18,12 +18,19 @@ test.describe('Compra y comandas', () => {
         await page.getByRole('button', { name: /Abrir el carrito/ }).click();
         const carrito = page.getByRole('dialog', { name: 'Tu pedido' });
         await expect(carrito.getByText('Pizza Especial de la Casa')).toBeVisible();
+
+        // Sin dirección de entrega no deja confirmar.
+        await carrito.getByRole('button', { name: 'Confirmar pedido' }).click();
+        await expect(carrito.getByText('Indicá la dirección de entrega: calle y número.')).toBeVisible();
+        await carrito.getByLabel('Dirección de entrega').fill('Gorriti 4520, 3° B, Palermo');
+        await carrito.getByLabel(/Aclaraciones para el local/).fill('Tocar timbre 3B');
         await carrito.getByRole('button', { name: 'Confirmar pedido' }).click();
 
-        // Queda primero en "Mis pedidos", pendiente.
+        // Queda primero en "Mis pedidos", pendiente y con la dirección.
         await expect(page).toHaveURL(/#\/pedidos$/);
         const pedido = page.locator('.pedido').first();
         await expect(pedido).toContainText('2 × Pizza Especial de la Casa');
+        await expect(pedido).toContainText('Gorriti 4520, 3° B, Palermo');
         await expect(pedido.locator('.pedido__cabecera .estado')).toHaveText('Pendiente');
         const numero = await numeroDePedido(pedido.locator('.pedido__numero'));
 
@@ -39,6 +46,8 @@ test.describe('Compra y comandas', () => {
 
         const comanda = page.locator('.comanda', { hasText: `Pedido #${numero}` });
         await expect(comanda).toContainText('Lucía Fernández');
+        await expect(comanda).toContainText('Gorriti 4520, 3° B, Palermo');
+        await expect(comanda).toContainText('Tocar timbre 3B');
         await comanda.getByRole('button', { name: 'Rechazar' }).click();
         await page.getByRole('dialog', { name: `¿Rechazar el pedido #${numero}?` })
             .getByRole('button', { name: 'Rechazar pedido' }).click();

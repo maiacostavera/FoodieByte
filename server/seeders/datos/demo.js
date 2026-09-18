@@ -152,15 +152,16 @@ const LOCALES = [
 ];
 
 // La primera clienta es la cuenta de demostración que figura en el README.
+// `entrega` es la dirección a la que llegan sus pedidos.
 const CLIENTES = [
-  { nombre: 'Lucía Fernández', email: 'lucia@foodiebyte.com', alta: 95 },
-  { nombre: 'Martín Gómez', email: 'martin.gomez@ejemplo.com', alta: 88 },
-  { nombre: 'Sofía Rodríguez', email: 'sofia.rodriguez@ejemplo.com', alta: 80 },
-  { nombre: 'Tomás Pereyra', email: 'tomas.pereyra@ejemplo.com', alta: 72 },
-  { nombre: 'Valentina López', email: 'valentina.lopez@ejemplo.com', alta: 66 },
-  { nombre: 'Joaquín Díaz', email: 'joaquin.diaz@ejemplo.com', alta: 60 },
-  { nombre: 'Camila Romero', email: 'camila.romero@ejemplo.com', alta: 54 },
-  { nombre: 'Nicolás Álvarez', email: 'nicolas.alvarez@ejemplo.com', alta: 48 }
+  { nombre: 'Lucía Fernández', email: 'lucia@foodiebyte.com', alta: 95, entrega: 'Gorriti 4520, 3° B, Palermo' },
+  { nombre: 'Martín Gómez', email: 'martin.gomez@ejemplo.com', alta: 88, entrega: 'Av. Cabildo 1830, 5° A, Belgrano' },
+  { nombre: 'Sofía Rodríguez', email: 'sofia.rodriguez@ejemplo.com', alta: 80, entrega: 'Thames 1150, PB 2, Villa Crespo' },
+  { nombre: 'Tomás Pereyra', email: 'tomas.pereyra@ejemplo.com', alta: 72, entrega: 'Av. Rivadavia 6120, 8° C, Caballito' },
+  { nombre: 'Valentina López', email: 'valentina.lopez@ejemplo.com', alta: 66, entrega: 'Humboldt 1970, Palermo' },
+  { nombre: 'Joaquín Díaz', email: 'joaquin.diaz@ejemplo.com', alta: 60, entrega: 'Defensa 980, 2° A, San Telmo' },
+  { nombre: 'Camila Romero', email: 'camila.romero@ejemplo.com', alta: 54, entrega: 'Av. Federico Lacroze 3100, 4° D, Colegiales' },
+  { nombre: 'Nicolás Álvarez', email: 'nicolas.alvarez@ejemplo.com', alta: 48, entrega: 'Arenales 2450, 7° B, Recoleta' }
 ];
 
 // Foodies que pidieron dar de alta su local: el administrador los ve como
@@ -193,7 +194,7 @@ const POSTULANTES = [
 // Una cuenta dada de baja: no puede entrar, pero sus pedidos siguen contando
 // en las ventas y liquidaciones de los locales.
 const DESACTIVADOS = [
-  { nombre: 'Federico Ruiz', email: 'federico.ruiz@ejemplo.com', alta: 130 }
+  { nombre: 'Federico Ruiz', email: 'federico.ruiz@ejemplo.com', alta: 130, entrega: 'Av. Scalabrini Ortiz 1500, Palermo' }
 ];
 
 // Consultas públicas sobre los platos. Las que no tienen respuesta quedan

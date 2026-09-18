@@ -29,7 +29,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM(...ESTADOS),
       allowNull: false,
       defaultValue: 'Pendiente'
-    }
+    },
+    // Admiten NULL por los pedidos anteriores a esta columna; la API exige la
+    // dirección en cada pedido nuevo.
+    direccionEntrega: { type: DataTypes.STRING(200), allowNull: true },
+    notas: { type: DataTypes.STRING(300), allowNull: true }
   }, {
     sequelize,
     modelName: 'Pedido',

@@ -21,13 +21,14 @@ const DIAS_DE_HISTORIAL = 42;
 // Pedidos escritos a mano: cada local tiene comandas pendientes y la cuenta de
 // demostración (Lucía) muestra todos los estados posibles de un pedido.
 // `estados` dice cómo respondió cada local; si no figura, su parte está Pendiente.
+// La dirección de entrega es la del cliente (ver `entrega` en datos/demo.js).
 const PEDIDOS_FIJOS = [
-  { cliente: 'lucia@foodiebyte.com', hace: 25 * MINUTO, items: [['Pizza Margherita', 1], ['Tiramisú', 2]] },
+  { cliente: 'lucia@foodiebyte.com', hace: 25 * MINUTO, items: [['Pizza Margherita', 1], ['Tiramisú', 2]], notas: 'Tocar timbre 3B' },
   { cliente: 'valentina.lopez@ejemplo.com', hace: 35 * MINUTO, items: [['Doble Bacon', 1], ['Papas con Cheddar y Verdeo', 1]] },
   { cliente: 'martin.gomez@ejemplo.com', hace: 50 * MINUTO, items: [['Pizza de Pepperoni', 2]] },
   { cliente: 'camila.romero@ejemplo.com', hace: 1 * HORA, items: [['Buddha Bowl', 1], ['Brownie con Helado', 1]] },
-  { cliente: 'sofia.rodriguez@ejemplo.com', hace: 80 * MINUTO, items: [['Pizza Napolitana', 1], ['Combinado Clásico 15 piezas', 1]] },
-  { cliente: 'tomas.pereyra@ejemplo.com', hace: 2 * HORA, items: [['Parrillada para Dos', 1], ['Flan Casero con Dulce de Leche', 2]] },
+  { cliente: 'sofia.rodriguez@ejemplo.com', hace: 80 * MINUTO, items: [['Pizza Napolitana', 1], ['Combinado Clásico 15 piezas', 1]], notas: 'Dejar en portería' },
+  { cliente: 'tomas.pereyra@ejemplo.com', hace: 2 * HORA, items: [['Parrillada para Dos', 1], ['Flan Casero con Dulce de Leche', 2]], notas: 'La carne bien jugosa, por favor' },
   { cliente: 'joaquin.diaz@ejemplo.com', hace: 3 * HORA, items: [['Docena Surtida', 1]] },
   {
     cliente: 'nicolas.alvarez@ejemplo.com', hace: 4 * HORA,
@@ -55,6 +56,9 @@ const PEDIDOS_FIJOS = [
     estados: { 'saborcriollo@foodiebyte.com': 'Rechazado' }
   }
 ];
+
+// Aclaraciones que dejan algunos clientes en sus pedidos.
+const NOTAS = ['Tocar timbre y esperar', 'Sin cebolla, por favor', 'Dejar en portería', 'El timbre no anda: llamar al llegar', 'Con cubiertos descartables', 'Sin picante'];
 
 // mulberry32: generador pseudoaleatorio chico y reproducible a partir de una semilla.
 const crearAzar = (semilla) => () => {
@@ -128,6 +132,8 @@ const generarHistorial = (ahora, platos, clientes, desactivados) => {
 
       pedidos.push({
         usuarioId: cliente.id,
+        email: cliente.email,
+        notas: azar() < 0.25 ? elegir(NOTAS) : null,
         creado,
         lineas: items.map(([plato, cantidad]) => ({ plato, cantidad, estado: respuestaDelLocal.get(plato.vendedorId) }))
       });
@@ -174,9 +180,12 @@ module.exports = {
     const platoPorNombre = new Map(platos.map(plato => [plato.nombre, plato]));
     const cuentaPorEmail = new Map(cuentas.map(cuenta => [cuenta.email, cuenta]));
     const emailsDesactivados = new Set(DESACTIVADOS.map(cuenta => cuenta.email));
+    const entregaPorEmail = new Map([...CLIENTES, ...DESACTIVADOS].map(cuenta => [cuenta.email, cuenta.entrega]));
 
-    const fijos = PEDIDOS_FIJOS.map(({ cliente, hace, items, estados = {} }) => ({
+    const fijos = PEDIDOS_FIJOS.map(({ cliente, hace, items, estados = {}, notas = null }) => ({
       usuarioId: cuentaPorEmail.get(cliente).id,
+      email: cliente,
+      notas,
       creado: new Date(ahora.getTime() - hace),
       lineas: items.map(([nombre, cantidad]) => {
         const plato = platoPorNombre.get(nombre);
@@ -218,14 +227,16 @@ module.exports = {
         const estado = estadoDelPedido(lineas);
 
         const [fila] = await queryInterface.sequelize.query(
-          `INSERT INTO "Pedidos" ("usuarioId", total, estado, "createdAt", "updatedAt")
-           VALUES (:usuarioId, :total, :estado, :creado, :actualizado)
+          `INSERT INTO "Pedidos" ("usuarioId", total, estado, "direccionEntrega", notas, "createdAt", "updatedAt")
+           VALUES (:usuarioId, :total, :estado, :direccionEntrega, :notas, :creado, :actualizado)
            RETURNING id`,
           {
             replacements: {
               usuarioId: pedido.usuarioId,
               total: lineas.reduce((acc, linea) => acc + linea.subtotal, 0),
               estado,
+              direccionEntrega: entregaPorEmail.get(pedido.email),
+              notas: pedido.notas,
               creado: pedido.creado,
               actualizado: lineas.every(linea => linea.estado === 'Pendiente') ? pedido.creado : respondido
             },

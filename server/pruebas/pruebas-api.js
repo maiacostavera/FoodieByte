@@ -30,6 +30,8 @@ const PUERTO = 4100;
 const BASE = `http://127.0.0.1:${PUERTO}`;
 const SUFIJO = `pruebas-${Date.now()}`;
 const PASSWORD = 'pruebas123';
+// Cada pedido necesita una dirección de entrega.
+const ENTREGA = { direccionEntrega: 'Av. Corrientes 1234, CABA' };
 
 let servidor;
 const creados = { usuarios: [], platos: [] };
@@ -193,7 +195,7 @@ async function ejecutar() {
   await prueba('Un foodie puede confirmar un pedido y se descuenta el stock', async () => {
     const { estado, datos } = await pedir('POST', '/api/pedidos', {
       token: cliente1.token,
-      body: { productos: [{ id: platoLocal1.id, cantidad: 2 }] }
+      body: { ...ENTREGA, productos: [{ id: platoLocal1.id, cantidad: 2 }] }
     });
     assert.strictEqual(estado, 201);
     pedidoCliente1 = datos.pedido;
@@ -207,7 +209,7 @@ async function ejecutar() {
     const { datos } = await pedir('POST', '/api/pedidos', {
       token: cliente2.token,
       // El cliente intenta cobrarse $1 en lugar de $1000.
-      body: { productos: [{ id: platoLocal1.id, cantidad: 1, precio: 1 }] }
+      body: { ...ENTREGA, productos: [{ id: platoLocal1.id, cantidad: 1, precio: 1 }] }
     });
     assert.strictEqual(Number(datos.pedido.total), 1000, 'Se respetó un precio manipulado por el cliente');
   });
@@ -215,7 +217,7 @@ async function ejecutar() {
   await prueba('Sin stock suficiente el pedido se rechaza y no se descuenta nada', async () => {
     const { estado } = await pedir('POST', '/api/pedidos', {
       token: cliente1.token,
-      body: { productos: [{ id: platoEscaso.id, cantidad: 99 }] }
+      body: { ...ENTREGA, productos: [{ id: platoEscaso.id, cantidad: 99 }] }
     });
     assert.strictEqual(estado, 409);
 
@@ -227,11 +229,11 @@ async function ejecutar() {
     const [a, b] = await Promise.all([
       pedir('POST', '/api/pedidos', {
         token: cliente1.token,
-        body: { productos: [{ id: platoEscaso.id, cantidad: 1 }] }
+        body: { ...ENTREGA, productos: [{ id: platoEscaso.id, cantidad: 1 }] }
       }),
       pedir('POST', '/api/pedidos', {
         token: cliente2.token,
-        body: { productos: [{ id: platoEscaso.id, cantidad: 1 }] }
+        body: { ...ENTREGA, productos: [{ id: platoEscaso.id, cantidad: 1 }] }
       })
     ]);
 
@@ -245,7 +247,7 @@ async function ejecutar() {
   await prueba('Un vendedor no puede realizar compras', async () => {
     const { estado } = await pedir('POST', '/api/pedidos', {
       token: local1.token,
-      body: { productos: [{ id: platoLocal2.id, cantidad: 1 }] }
+      body: { ...ENTREGA, productos: [{ id: platoLocal2.id, cantidad: 1 }] }
     });
     assert.strictEqual(estado, 403);
   });
@@ -253,9 +255,52 @@ async function ejecutar() {
   await prueba('Se rechazan las cantidades inválidas', async () => {
     const negativa = await pedir('POST', '/api/pedidos', {
       token: cliente1.token,
-      body: { productos: [{ id: platoLocal1.id, cantidad: -5 }] }
+      body: { ...ENTREGA, productos: [{ id: platoLocal1.id, cantidad: -5 }] }
     });
     assert.strictEqual(negativa.estado, 400);
+  });
+
+  await prueba('Un pedido sin dirección de entrega se rechaza sin tocar el stock', async () => {
+    const stockAntes = (await platoLocal1.reload()).stock;
+    const sinDireccion = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token,
+      body: { productos: [{ id: platoLocal1.id, cantidad: 1 }] }
+    });
+    const incompleta = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token,
+      body: { direccionEntrega: '  ab  ', productos: [{ id: platoLocal1.id, cantidad: 1 }] }
+    });
+    assert.strictEqual(sinDireccion.estado, 400);
+    assert.strictEqual(incompleta.estado, 400);
+    assert.strictEqual((await platoLocal1.reload()).stock, stockAntes, 'Un pedido rechazado descontó stock');
+  });
+
+  await prueba('Las aclaraciones del pedido tienen un largo máximo', async () => {
+    const { estado } = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token,
+      body: { ...ENTREGA, notas: 'x'.repeat(301), productos: [{ id: platoLocal1.id, cantidad: 1 }] }
+    });
+    assert.strictEqual(estado, 400);
+  });
+
+  await prueba('El local ve la dirección de entrega y las aclaraciones de su comanda', async () => {
+    const platoEntrega = await crearPlato(local1.usuario.id, 'Plato Entrega', 500, 5);
+    const { estado, datos } = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token,
+      body: { direccionEntrega: 'Gorriti 4520, 3° B', notas: 'Tocar timbre 3B', productos: [{ id: platoEntrega.id, cantidad: 1 }] }
+    });
+    assert.strictEqual(estado, 201);
+
+    const comandas = await pedir('GET', '/api/pedidos/comandas', { token: local1.token });
+    const comanda = comandas.datos.find(p => p.id === datos.pedido.id);
+    assert.strictEqual(comanda.direccionEntrega, 'Gorriti 4520, 3° B');
+    assert.strictEqual(comanda.notas, 'Tocar timbre 3B');
+
+    const propios = await pedir('GET', '/api/pedidos/mis-pedidos', { token: cliente1.token });
+    assert.ok(propios.datos.some(p => p.id === datos.pedido.id && p.direccionEntrega === 'Gorriti 4520, 3° B'));
+
+    // Se rechaza para no dejar comandas pendientes que afecten a otras pruebas.
+    await pedir('PUT', `/api/pedidos/${datos.pedido.id}/estado`, { token: local1.token, body: { nuevoEstado: 'Rechazado' } });
   });
 
   // -------------------------------------------------------------------------
@@ -265,6 +310,7 @@ async function ejecutar() {
   const mixto = await pedir('POST', '/api/pedidos', {
     token: cliente2.token,
     body: {
+      ...ENTREGA,
       productos: [
         { id: platoLocal1.id, cantidad: 1 },
         { id: platoLocal2.id, cantidad: 2 }
@@ -456,7 +502,7 @@ async function ejecutar() {
 
     const compra = await pedir('POST', '/api/pedidos', {
       token: cliente1.token,
-      body: { productos: [{ id: platoLocal2.id, cantidad: 1 }] }
+      body: { ...ENTREGA, productos: [{ id: platoLocal2.id, cantidad: 1 }] }
     });
     await pedir('PUT', `/api/pedidos/${compra.datos.pedido.id}/estado`, {
       token: local2.token,
@@ -667,7 +713,7 @@ async function ejecutar() {
   const comprar = async (cliente, plato, cantidad) => {
     const { estado, datos } = await pedir('POST', '/api/pedidos', {
       token: cliente.token,
-      body: { productos: [{ id: plato.id, cantidad }] }
+      body: { ...ENTREGA, productos: [{ id: plato.id, cantidad }] }
     });
     assert.strictEqual(estado, 201, `La compra de preparación falló: ${datos && datos.mensaje}`);
     return datos.pedido;
@@ -752,7 +798,7 @@ async function ejecutar() {
     for (let ronda = 1; ronda <= 5; ronda++) {
       const { datos } = await pedir('POST', '/api/pedidos', {
         token: cliente2.token,
-        body: { productos: [{ id: platoA.id, cantidad: 1 }, { id: platoB.id, cantidad: 1 }] }
+        body: { ...ENTREGA, productos: [{ id: platoA.id, cantidad: 1 }, { id: platoB.id, cantidad: 1 }] }
       });
       const pedidoId = datos.pedido.id;
 
@@ -772,7 +818,7 @@ async function ejecutar() {
 
     const { datos } = await pedir('POST', '/api/pedidos', {
       token: cliente2.token,
-      body: { productos: [{ id: platoA.id, cantidad: 1 }, { id: platoB.id, cantidad: 1 }] }
+      body: { ...ENTREGA, productos: [{ id: platoA.id, cantidad: 1 }, { id: platoB.id, cantidad: 1 }] }
     });
     const pedidoId = datos.pedido.id;
 
@@ -885,7 +931,7 @@ async function ejecutar() {
 
     const compra = await pedir('POST', '/api/pedidos', {
       token: cliente1.token,
-      body: { productos: [{ id: plato.id, cantidad: 1 }] }
+      body: { ...ENTREGA, productos: [{ id: plato.id, cantidad: 1 }] }
     });
     assert.strictEqual(compra.estado, 404, 'Se pudo comprar un plato de un local desactivado');
 

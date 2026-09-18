@@ -47,7 +47,10 @@ function PedidosPlataforma({ pedidos }) {
                                 <tr key={pedido.id}>
                                     <td><strong>#{pedido.id}</strong></td>
                                     <td className="texto-tenue">{formatearFechaHora(pedido.createdAt)}</td>
-                                    <td>{pedido.usuario?.nombre || '—'}</td>
+                                    <td>
+                                        {pedido.usuario?.nombre || '—'}
+                                        {pedido.direccionEntrega && <span className="celda-detalle">{pedido.direccionEntrega}</span>}
+                                    </td>
                                     <td>{locales.join(', ')}</td>
                                     <td className="a-la-derecha">{formatearMoneda(pedido.total)}</td>
                                     <td><EstadoPedido estado={pedido.estado} chico /></td>

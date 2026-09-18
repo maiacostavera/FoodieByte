@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFoodie } from '../state/FoodieContext';
 import { formatearMoneda } from '../utils/formato';
+import { LIMITES } from '../utils/limites';
 import { imagenDelPlato } from '../utils/imagenes';
 import Icono from './Icono';
 
@@ -12,6 +13,14 @@ function Carrito({ alCerrar, alConfirmarCompra, alVerMenu }) {
     } = useFoodie();
 
     const [procesando, setProcesando] = useState(false);
+    // La última dirección usada se recuerda en este navegador, para cada cuenta.
+    const claveDireccion = `foodie_direccion_${usuario?.id}`;
+    const [direccion, setDireccion] = useState(() => {
+        try { return localStorage.getItem(claveDireccion) || ''; } catch { return ''; }
+    });
+    const [notas, setNotas] = useState('');
+    const [errorEntrega, setErrorEntrega] = useState('');
+    const campoDireccion = useRef(null);
     const panel = useRef(null);
     const cerrar = useRef(alCerrar);
 
@@ -36,13 +45,23 @@ function Carrito({ alCerrar, alConfirmarCompra, alVerMenu }) {
 
     const cantidadDeLocales = new Set(carrito.map(item => item.vendedorId)).size;
 
-    const procesarCompra = async () => {
+    const procesarCompra = async (evento) => {
+        evento.preventDefault();
         if (usuario?.rol !== 'foodie') {
             mostrarAviso('Solo las cuentas de cliente pueden hacer pedidos.', 'error');
             return;
         }
+        if (direccion.trim().length < 5) {
+            setErrorEntrega('Indicá la dirección de entrega: calle y número.');
+            campoDireccion.current?.focus();
+            return;
+        }
+
         setProcesando(true);
-        const exito = await enviarPedidoAlServidor();
+        const exito = await enviarPedidoAlServidor({ direccionEntrega: direccion.trim(), notas: notas.trim() || undefined });
+        if (exito) {
+            try { localStorage.setItem(claveDireccion, direccion.trim()); } catch { /* sin almacenamiento no se recuerda */ }
+        }
         setProcesando(false);
         // La compra descontó stock: el catálogo tiene que mostrar las cantidades nuevas.
         if (exito) alConfirmarCompra();
@@ -112,14 +131,33 @@ function Carrito({ alCerrar, alConfirmarCompra, alVerMenu }) {
                                     Tu pedido incluye {cantidadDeLocales} locales: cada uno prepara y envía su parte.
                                 </p>
                             )}
+                            <form id="formulario-entrega" className="entrega" onSubmit={procesarCompra} noValidate>
+                                <div className="campo">
+                                    <label htmlFor="entrega-direccion" className="campo__etiqueta">Dirección de entrega</label>
+                                    <input id="entrega-direccion" ref={campoDireccion} className="entrada entrada--chica"
+                                        autoComplete="street-address" placeholder="Calle, número, piso y departamento"
+                                        maxLength={LIMITES.direccion} value={direccion} aria-invalid={Boolean(errorEntrega)}
+                                        aria-describedby={errorEntrega ? 'entrega-error' : undefined}
+                                        onChange={(e) => { setDireccion(e.target.value); if (errorEntrega) setErrorEntrega(''); }} />
+                                    {errorEntrega && <span id="entrega-error" className="campo__error">{errorEntrega}</span>}
+                                </div>
+                                <div className="campo">
+                                    <label htmlFor="entrega-notas" className="campo__etiqueta">
+                                        Aclaraciones para el local <span className="texto-tenue">(opcional)</span>
+                                    </label>
+                                    <input id="entrega-notas" className="entrada entrada--chica" placeholder="Ej.: timbre 3B, sin cebolla"
+                                        maxLength={LIMITES.notas} value={notas} onChange={(e) => setNotas(e.target.value)} />
+                                </div>
+                            </form>
                             <div className="resumen-total">
                                 <span>Total</span>
                                 <strong>{formatearMoneda(totalCarrito)}</strong>
                             </div>
-                            <button type="button" className="boton boton--primario boton--grande boton--bloque"
-                                onClick={procesarCompra} disabled={procesando}>
+                            <button type="submit" form="formulario-entrega" className="boton boton--primario boton--grande boton--bloque"
+                                disabled={procesando}>
                                 {procesando ? 'Confirmando…' : 'Confirmar pedido'}
                             </button>
+                            <p className="entrega__pago"><Icono nombre="billete" tamano={16} />Pagás al recibir, en efectivo o con tarjeta.</p>
                         </footer>
                     </>
                 )}
