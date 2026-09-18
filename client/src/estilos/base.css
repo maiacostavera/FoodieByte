@@ -1,0 +1,222 @@
+/* ==========================================================================
+   Variables de diseño
+   Todos los colores, radios, sombras y tiempos salen de acá: para cambiar el
+   aspecto de la aplicación se tocan estas variables, no cada componente.
+   ========================================================================== */
+
+:root {
+  /* Marca */
+  --primario: #d32f2f;
+  --primario-hover: #b71c1c;
+  --primario-suave: #fdecea;
+  --primario-borde: #f5c6c1;
+  --anillo-foco: rgb(211 47 47 / 0.28);
+
+  /* Texto */
+  --texto: #1f1f23;
+  --texto-2: #54545c;
+  --texto-3: #8a8a93;
+
+  /* Superficies */
+  --fondo: #f7f6f3;
+  --superficie: #ffffff;
+  --superficie-2: #f3f1ed;
+  --borde: #e8e5df;
+  --borde-fuerte: #d7d3cb;
+  --oscuro: #18181b;
+
+  /* Estados: siempre acompañados de un texto o un ícono, nunca solo color */
+  --exito: #1b7f3b;
+  --exito-suave: #e6f4ea;
+  --alerta: #a85200;
+  --alerta-suave: #fff3df;
+  --peligro: #c62828;
+  --peligro-suave: #fdecea;
+  --info: #1d4ed8;
+  --info-suave: #e8eefc;
+
+  /* Forma */
+  --radio-chico: 10px;
+  --radio: 14px;
+  --radio-grande: 22px;
+  --radio-pildora: 999px;
+
+  --sombra-1: 0 1px 2px rgb(24 24 27 / 0.05), 0 1px 3px rgb(24 24 27 / 0.06);
+  --sombra-2: 0 10px 30px rgb(24 24 27 / 0.08);
+  --sombra-3: 0 24px 64px rgb(24 24 27 / 0.2);
+
+  /* Tipografía y medidas */
+  --fuente: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ancho-maximo: 1240px;
+  --alto-barra: 72px;
+
+  /* Movimiento */
+  --curva: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --rapido: 160ms;
+  --normal: 260ms;
+
+  color-scheme: light;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--alto-barra) + 16px);
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--fuente);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--texto);
+  background: var(--fondo);
+  -webkit-font-smoothing: antialiased;
+  /* clip y no hidden: hidden convierte al body en contenedor de scroll y rompe
+     la barra superior fija (position: sticky). */
+  overflow-x: clip;
+}
+
+body.sin-scroll {
+  overflow: hidden;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--anillo-foco);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--primario-suave);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   Utilidades
+   ========================================================================== */
+
+.contenedor {
+  width: 100%;
+  max-width: var(--ancho-maximo);
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+@media (min-width: 768px) {
+  .contenedor {
+    padding-inline: 32px;
+  }
+}
+
+.pagina {
+  padding-block: 32px 64px;
+}
+
+.principal {
+  flex: 1;
+}
+
+/* Texto visible solo para lectores de pantalla. */
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.texto-secundario {
+  color: var(--texto-2);
+}
+
+.texto-tenue {
+  color: var(--texto-3);
+}
+
+.numero {
+  font-variant-numeric: tabular-nums;
+}
+
+.encabezado-seccion {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.encabezado-seccion h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.encabezado-seccion p {
+  color: var(--texto-2);
+  font-size: 0.92rem;
+  margin-top: 4px;
+}
+
+/* Quien pidió menos movimiento en su sistema no ve animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

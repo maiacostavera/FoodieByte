@@ -111,29 +111,37 @@ Para instalarlo a mano, paso por paso, está la [Instalación manual](#instalaci
 ## Roles y funcionalidades
 
 ### Público (sin sesión)
-- Catálogo de platos con buscador y filtro por categoría, ambos resueltos en el servidor.
-- Ficha de cada producto con sus consultas y respuestas.
+- Portada con las cifras reales del catálogo (platos, locales y categorías).
+- Catálogo con buscador y filtro por categoría (resueltos en el servidor), filtro por local y orden por precio o nombre.
+- Ficha de cada plato con su foto, stock, consultas y respuestas, y otros platos del mismo local.
+- Preguntas frecuentes, términos y política de privacidad.
 
 ### Foodie
-- Carrito de compras persistente entre recargas.
+- Carrito en un panel lateral, que se conserva entre recargas y avisa si el pedido incluye varios locales.
 - Confirmación de pedidos con descuento de stock **transaccional**.
-- Historial propio de pedidos con el estado de cada línea.
+- Historial de pedidos agrupado por local, con el estado de cada parte y el total sin lo rechazado.
 - Consultas públicas sobre los platos.
-- Solicitud de alta como vendedor.
+- Solicitud de alta como vendedor, con su estado visible mientras está en revisión.
 
 ### Vendedor (local)
-- ABM completo de su menú, con carga de imágenes.
-- Panel de comandas separado en Pendientes / Enviados / Rechazados.
+- Resumen con facturación, pedidos, pendientes, gráfico de ventas de los últimos 14 días y platos más vendidos.
+- Comandas pendientes como tarjetas, de la más vieja a la más nueva, e historial filtrable.
 - Despacho o rechazo únicamente de sus propios productos; al rechazar, el stock vuelve.
-- Resumen de ventas: facturación, comandas recibidas, pendientes y alertas de stock.
-- Respuesta a las consultas de sus clientes.
+- ABM de su menú con búsqueda, vista previa de la foto y alertas de poco stock.
+- Respuesta a las consultas de sus clientes desde la ficha del plato.
 
 ### Administrador
-- KPIs globales: usuarios, platos, locales, pedidos y volumen de ventas.
+- Indicadores globales, gráfico de ventas de la plataforma y platos más vendidos.
 - Liquidación de comisiones por local (5 % configurable).
-- Gestión global de usuarios: cambio de roles y desactivación de cuentas, que conserva su historial.
-- Evaluación de las solicitudes de alta de local, con todos los datos del formulario.
-- Moderación de cualquier plato o pedido de la plataforma.
+- Gestión de usuarios con búsqueda y filtros: cambio de roles y desactivación de cuentas, que conserva su historial.
+- Solicitudes de alta de local como tarjetas, con todos los datos del formulario.
+- Moderación de cualquier plato y listado de todos los pedidos.
+
+### En toda la aplicación
+- Cada pantalla tiene su dirección (`#/plato/12`, `#/pedidos`, `#/panel`…): el botón atrás del navegador funciona.
+- Las acciones que no se pueden deshacer piden confirmación en una ventana propia.
+- Diseño adaptable a celulares, con foco visible para teclado y sin animaciones para quien las desactivó en su sistema.
+- Con `npm run dev`, la pantalla de ingreso ofrece entrar con un clic con las cuentas de la demo.
 
 ---
 
@@ -598,12 +606,12 @@ FoodieByte/
 │   ├── src/
 │   │   ├── api/client.js          Instancia de Axios: URL base, token y manejo de sesión vencida
 │   │   ├── assets/                Imágenes (importadas como módulos para que entren al build)
-│   │   ├── components/
-│   │   │   ├── admin/             Piezas del panel de gestión
-│   │   │   └── ...                Navbar, Banner, Carrito, Login, Signup, etc.
-│   │   ├── state/                 Context de sesión y carrito
-│   │   ├── utils/imagenes.js      Resolución de la imagen de cada plato
-│   │   └── App.jsx
+│   │   ├── components/            Pantallas y piezas de la interfaz
+│   │   │   └── panel/             Panel de gestión del local y del administrador
+│   │   ├── estilos/               CSS: variables de diseño, componentes, páginas y panel
+│   │   ├── state/                 Context de sesión, carrito, avisos y confirmaciones
+│   │   ├── utils/                 Rutas, formato de precios y fechas, imágenes y límites
+│   │   └── App.jsx                Pantalla actual según la dirección y datos del catálogo
 │   └── .env.example
 │
 ├── server/

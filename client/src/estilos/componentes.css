@@ -1,0 +1,958 @@
+/* ==========================================================================
+   Botones
+   .boton + una variante (--primario, --oscuro, --fantasma, --exito,
+   --peligro) + un tamaño opcional (--chico, --grande) + --bloque o --icono.
+   ========================================================================== */
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: var(--radio-pildora);
+  background: var(--superficie);
+  color: var(--texto);
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color var(--rapido) var(--curva),
+    border-color var(--rapido) var(--curva),
+    color var(--rapido) var(--curva),
+    box-shadow var(--rapido) var(--curva),
+    transform var(--rapido) var(--curva);
+}
+
+.boton:hover {
+  border-color: var(--texto-3);
+}
+
+.boton:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.boton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.boton--primario {
+  background: var(--primario);
+  border-color: var(--primario);
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(211 47 47 / 0.22);
+}
+
+.boton--primario:hover:not(:disabled) {
+  background: var(--primario-hover);
+  border-color: var(--primario-hover);
+}
+
+.boton--oscuro {
+  background: var(--oscuro);
+  border-color: var(--oscuro);
+  color: #fff;
+}
+
+.boton--oscuro:hover:not(:disabled) {
+  background: #000;
+  border-color: #000;
+}
+
+.boton--fantasma {
+  background: transparent;
+  border-color: transparent;
+  color: var(--texto-2);
+}
+
+.boton--fantasma:hover:not(:disabled) {
+  background: var(--superficie-2);
+  border-color: transparent;
+  color: var(--texto);
+}
+
+.boton--exito {
+  background: var(--exito);
+  border-color: var(--exito);
+  color: #fff;
+}
+
+.boton--exito:hover:not(:disabled) {
+  background: #146a31;
+  border-color: #146a31;
+}
+
+.boton--peligro {
+  color: var(--peligro);
+  border-color: var(--primario-borde);
+}
+
+.boton--peligro:hover:not(:disabled) {
+  background: var(--peligro-suave);
+  border-color: var(--peligro);
+}
+
+.boton--claro {
+  background: rgb(255 255 255 / 0.12);
+  border-color: rgb(255 255 255 / 0.55);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.boton--claro:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.22);
+  border-color: #fff;
+}
+
+.boton--chico {
+  min-height: 34px;
+  padding: 0 13px;
+  font-size: 0.84rem;
+}
+
+.boton--grande {
+  min-height: 52px;
+  padding: 0 28px;
+  font-size: 1rem;
+}
+
+.boton--bloque {
+  width: 100%;
+}
+
+.boton--icono {
+  width: 42px;
+  padding: 0;
+}
+
+.boton--icono.boton--chico {
+  width: 34px;
+}
+
+/* Botón con aspecto de enlace, para acciones dentro de un texto. */
+.enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primario);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--rapido);
+}
+
+.enlace:hover {
+  text-decoration-color: currentColor;
+}
+
+/* ==========================================================================
+   Campos de formulario
+   ========================================================================== */
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.campo__etiqueta {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--texto-2);
+}
+
+.campo__ayuda {
+  font-size: 0.8rem;
+  color: var(--texto-3);
+}
+
+.campo__error {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--peligro);
+}
+
+.entrada {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 14px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: var(--radio-chico);
+  background: var(--superficie);
+  transition: border-color var(--rapido), box-shadow var(--rapido);
+}
+
+.entrada::placeholder {
+  color: var(--texto-3);
+}
+
+.entrada:hover {
+  border-color: var(--texto-3);
+}
+
+.entrada:focus {
+  outline: none;
+  border-color: var(--primario);
+  box-shadow: 0 0 0 4px rgb(211 47 47 / 0.12);
+}
+
+.entrada[aria-invalid='true'] {
+  border-color: var(--peligro);
+}
+
+textarea.entrada {
+  min-height: 104px;
+  resize: vertical;
+}
+
+select.entrada {
+  appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2354545c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+.entrada--chica {
+  min-height: 38px;
+  padding: 7px 12px;
+  font-size: 0.88rem;
+}
+
+select.entrada--chica {
+  padding-right: 34px;
+  background-position: right 10px center;
+}
+
+.grilla-campos {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.casilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.casilla input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primario);
+  cursor: pointer;
+}
+
+/* Buscador con ícono */
+.buscador {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.buscador > svg {
+  position: absolute;
+  left: 14px;
+  color: var(--texto-3);
+  pointer-events: none;
+}
+
+.buscador .entrada {
+  padding-left: 42px;
+  border-radius: var(--radio-pildora);
+  background: var(--superficie-2);
+  border-color: transparent;
+}
+
+.buscador .entrada:hover {
+  border-color: var(--borde-fuerte);
+}
+
+.buscador .entrada:focus {
+  background: var(--superficie);
+}
+
+/* Mensaje dentro de un formulario o una sección */
+.mensaje {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radio-chico);
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.mensaje svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.mensaje--error {
+  background: var(--peligro-suave);
+  color: var(--peligro);
+}
+
+.mensaje--info {
+  background: var(--info-suave);
+  color: var(--info);
+}
+
+.mensaje--alerta {
+  background: var(--alerta-suave);
+  color: var(--alerta);
+}
+
+.mensaje--exito {
+  background: var(--exito-suave);
+  color: var(--exito);
+}
+
+/* ==========================================================================
+   Tarjetas, etiquetas y estados
+   ========================================================================== */
+
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra-1);
+}
+
+.tarjeta--relleno {
+  padding: 24px;
+}
+
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radio-pildora);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--superficie-2);
+  color: var(--texto-2);
+}
+
+.etiqueta--exito {
+  background: var(--exito-suave);
+  color: var(--exito);
+}
+
+.etiqueta--alerta {
+  background: var(--alerta-suave);
+  color: var(--alerta);
+}
+
+.etiqueta--peligro {
+  background: var(--peligro-suave);
+  color: var(--peligro);
+}
+
+.etiqueta--info {
+  background: var(--info-suave);
+  color: var(--info);
+}
+
+.etiqueta--oscura {
+  background: var(--oscuro);
+  color: #fff;
+}
+
+.etiqueta--primaria {
+  background: var(--primario-suave);
+  color: var(--primario);
+}
+
+/* Estado de un pedido: punto de color + texto */
+.estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  border-radius: var(--radio-pildora);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.estado::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.estado--pendiente {
+  background: var(--alerta-suave);
+  color: var(--alerta);
+}
+
+.estado--enviado {
+  background: var(--exito-suave);
+  color: var(--exito);
+}
+
+.estado--rechazado {
+  background: var(--peligro-suave);
+  color: var(--peligro);
+}
+
+.estado--chico {
+  padding: 2px 9px;
+  font-size: 0.72rem;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--primario-suave);
+  color: var(--primario);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.avatar--chico {
+  width: 30px;
+  height: 30px;
+  font-size: 0.72rem;
+}
+
+.contador {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radio-pildora);
+  display: inline-grid;
+  place-items: center;
+  background: var(--primario);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Selector de cantidad (− 1 +) */
+.selector-cantidad {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: var(--radio-pildora);
+  background: var(--superficie);
+}
+
+.selector-cantidad button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  transition: background-color var(--rapido);
+}
+
+.selector-cantidad button:hover:not(:disabled) {
+  background: var(--superficie-2);
+}
+
+.selector-cantidad button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.selector-cantidad output {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.selector-cantidad--chico button {
+  width: 28px;
+  height: 28px;
+}
+
+/* ==========================================================================
+   Pestañas
+   ========================================================================== */
+
+.pestanas {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radio-pildora);
+  background: var(--superficie-2);
+  scrollbar-width: none;
+}
+
+.pestana {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radio-pildora);
+  background: transparent;
+  color: var(--texto-2);
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: background-color var(--rapido), color var(--rapido), box-shadow var(--rapido);
+}
+
+.pestana:hover {
+  color: var(--texto);
+}
+
+.pestana[aria-selected='true'] {
+  background: var(--superficie);
+  color: var(--texto);
+  box-shadow: var(--sombra-1);
+}
+
+/* ==========================================================================
+   Tablas
+   ========================================================================== */
+
+.tabla-contenedor {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.tabla th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--borde);
+  text-align: left;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--texto-3);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--borde);
+  vertical-align: middle;
+}
+
+.tabla tbody tr {
+  transition: background-color var(--rapido);
+}
+
+.tabla tbody tr:hover {
+  background: #fbfaf8;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla tfoot td {
+  padding: 14px 16px;
+  border-top: 2px solid var(--borde);
+  font-weight: 700;
+}
+
+.tabla .a-la-derecha {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla__fila--apagada td {
+  color: var(--texto-3);
+}
+
+/* ==========================================================================
+   Estado vacío y carga
+   ========================================================================== */
+
+.vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 52px 20px;
+  text-align: center;
+  color: var(--texto-2);
+}
+
+.vacio__icono {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 10px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--superficie-2);
+  color: var(--texto-3);
+}
+
+.vacio__titulo {
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.vacio .boton {
+  margin-top: 14px;
+}
+
+.esqueleto {
+  border-radius: var(--radio-chico);
+  background: linear-gradient(90deg, var(--superficie-2) 0%, #e9e6e0 50%, var(--superficie-2) 100%);
+  background-size: 200% 100%;
+  animation: brillo 1.3s ease-in-out infinite;
+}
+
+@keyframes brillo {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ==========================================================================
+   Ventanas modales
+   En el celular se abren desde abajo, como una hoja.
+   ========================================================================== */
+
+.modal-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(24 24 27 / 0.5);
+  backdrop-filter: blur(3px);
+  animation: aparecer var(--normal) var(--curva);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 40px);
+  background: var(--superficie);
+  border-radius: var(--radio-grande);
+  box-shadow: var(--sombra-3);
+  animation: emerger var(--normal) var(--curva);
+}
+
+.modal:focus {
+  outline: none;
+}
+
+.modal--ancho {
+  max-width: 760px;
+}
+
+.modal--angosto {
+  max-width: 440px;
+}
+
+.modal__cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 0;
+}
+
+.modal__titulo {
+  font-size: 1.22rem;
+  font-weight: 700;
+}
+
+.modal__subtitulo {
+  margin-top: 4px;
+  font-size: 0.9rem;
+  color: var(--texto-2);
+}
+
+.modal__cuerpo {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+}
+
+.modal__pie {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--borde);
+}
+
+@media (max-width: 600px) {
+  .modal-fondo {
+    align-items: end;
+    padding: 0;
+  }
+
+  .modal {
+    max-height: 94vh;
+    border-radius: var(--radio-grande) var(--radio-grande) 0 0;
+    animation-name: subir;
+  }
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes emerger {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+
+@keyframes subir {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* ==========================================================================
+   Aviso flotante (reemplaza a los alert() del navegador)
+   ========================================================================== */
+
+.aviso {
+  position: fixed;
+  z-index: 5000;
+  top: calc(var(--alto-barra) + 14px);
+  right: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(400px, calc(100vw - 32px));
+  padding: 14px 14px 14px 16px;
+  border-radius: var(--radio);
+  background: var(--oscuro);
+  color: #fff;
+  box-shadow: var(--sombra-3);
+  animation: entrar-aviso var(--normal) var(--curva);
+}
+
+.aviso__icono {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--oscuro);
+}
+
+.aviso--exito .aviso__icono {
+  background: #7ee2a0;
+}
+
+.aviso--error .aviso__icono {
+  background: #ffa4a4;
+}
+
+.aviso--info .aviso__icono {
+  background: #a9c2ff;
+}
+
+.aviso__texto {
+  flex: 1;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.45;
+  padding-top: 1px;
+}
+
+.aviso__cerrar {
+  flex-shrink: 0;
+  border: 0;
+  background: none;
+  color: rgb(255 255 255 / 0.6);
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.aviso__cerrar:hover {
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .aviso {
+    top: auto;
+    bottom: 16px;
+    right: 16px;
+  }
+}
+
+@keyframes entrar-aviso {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* ==========================================================================
+   Menú desplegable
+   ========================================================================== */
+
+.desplegable {
+  position: relative;
+}
+
+.desplegable__menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 1100;
+  min-width: 250px;
+  padding: 8px;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra-2);
+  animation: emerger var(--rapido) var(--curva);
+}
+
+.desplegable__cabecera {
+  padding: 10px 12px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.desplegable__nombre {
+  font-weight: 600;
+}
+
+.desplegable__correo {
+  font-size: 0.82rem;
+  color: var(--texto-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desplegable__opcion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radio-chico);
+  background: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  color: var(--texto-2);
+  transition: background-color var(--rapido), color var(--rapido);
+}
+
+.desplegable__opcion:hover:not(:disabled) {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+.desplegable__opcion:disabled {
+  cursor: default;
+}
+
+.desplegable__separador {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--borde);
+}
+
+/* Filtros con botones de alternar (aria-pressed) que usan el aspecto de pestañas */
+.pestana[aria-pressed='true'] {
+  background: var(--superficie);
+  color: var(--texto);
+  box-shadow: var(--sombra-1);
+}
+
+.desplegable__cabecera .etiqueta {
+  margin-top: 8px;
+}
+
+.encabezado-seccion h2 .contador {
+  margin-left: 6px;
+  vertical-align: 3px;
+}
+
+/* Bloques de carga con la forma de lo que se está por mostrar */
+.esqueleto-linea {
+  height: 12px;
+}
+
+.esqueleto-linea--titulo {
+  height: 18px;
+  width: 75%;
+}
+
+.esqueleto-linea--corta {
+  width: 35%;
+}
+
+.esqueleto-linea--media {
+  width: 60%;
+}
+
+.esqueleto--pedido {
+  height: 190px;
+  border-radius: var(--radio);
+}
+
+.esqueleto--ficha {
+  height: 420px;
+  border-radius: var(--radio-grande);
+}
+
+.esqueleto--kpi {
+  height: 124px;
+  border-radius: var(--radio);
+}

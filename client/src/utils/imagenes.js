@@ -22,6 +22,10 @@ const IMAGEN_POR_CATEGORIA = {
     postres: postre
 };
 
+/** Ilustración de una categoría: se usa en el filtro del catálogo y cuando un plato no tiene foto. */
+export const imagenDeCategoria = (categoria) =>
+    IMAGEN_POR_CATEGORIA[categoria?.toLowerCase()] || porDefecto;
+
 /**
  * Devuelve la imagen a mostrar para un plato: la que subió el vendedor si
  * existe, y si no la ilustración genérica de su categoría.
@@ -30,8 +34,7 @@ export const imagenDelPlato = (categoria, imagenUrl) => {
     if (imagenUrl && imagenUrl.trim() !== '') {
         return imagenUrl.startsWith('/uploads') ? `${API_URL}${imagenUrl}` : imagenUrl;
     }
-    if (!categoria) return porDefecto;
-    return IMAGEN_POR_CATEGORIA[categoria.toLowerCase()] || porDefecto;
+    return imagenDeCategoria(categoria);
 };
 
 export default imagenDelPlato;

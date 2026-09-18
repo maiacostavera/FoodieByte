@@ -33,7 +33,11 @@ const incluirDetalle = [
   {
     model: PedidoItem,
     as: 'items',
-    include: [{ model: Usuario, as: 'vendedor', attributes: ['id', 'nombre', 'nombre_local'] }]
+    include: [
+      { model: Usuario, as: 'vendedor', attributes: ['id', 'nombre', 'nombre_local'] },
+      // La foto se muestra en el historial; si el plato ya no existe, viene en null.
+      { model: Plato, as: 'plato', attributes: ['id', 'imagenUrl', 'categoria'] }
+    ]
   }
 ];
 
