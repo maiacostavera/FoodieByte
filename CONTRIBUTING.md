@@ -72,6 +72,7 @@ Un commit por cambio lógico: si el mensaje necesita un "y además", probablemen
    ```bash
    cd server && npm test
    cd client && npm run lint && npm run build
+   npm run test:e2e        # en la raíz, si el cambio toca la interfaz o un flujo
    ```
 
 2. La base del PR es `develop` (o `main`, solo para `hotfix/` y `release/`).
