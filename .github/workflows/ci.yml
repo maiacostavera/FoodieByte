@@ -123,3 +123,48 @@ jobs:
         run: npm run setup
         env:
           DB_PASSWORD: postgres
+
+  e2e:
+    name: Pruebas de punta a punta · Playwright
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Deja dependencias y .env listos; la base de las pruebas la arma Playwright.
+      - name: npm run setup
+        run: npm run setup
+        env:
+          DB_PASSWORD: postgres
+
+      - name: Navegador para las pruebas
+        run: npx playwright install --with-deps chromium
+
+      - name: npm run test:e2e
+        run: npm run test:e2e
+
+      - name: Reporte de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-playwright
+          path: playwright-report/
+          retention-days: 7

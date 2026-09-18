@@ -14,6 +14,9 @@
  * Uso:  npm run db:preparar        (lo usa también `npm run setup` en la raíz)
  *       npm run db:reset           (con --reiniciar)
  *
+ * Con --conservar-fotos, --reiniciar no toca uploads/: lo usan las pruebas de
+ * punta a punta, que arman su propia base pero comparten esa carpeta.
+ *
  * Termina con código 2 si PostgreSQL rechaza las credenciales y con 3 si no
  * responde: el instalador de la raíz los usa para saber si tiene que volver a
  * pedir la contraseña.
@@ -28,6 +31,7 @@ const { CARPETA_PLATOS } = require('../utils/imagenes');
 
 const CARPETA_SERVIDOR = path.join(__dirname, '..');
 const reiniciar = process.argv.includes('--reiniciar');
+const conservarFotos = process.argv.includes('--conservar-fotos');
 const desarrollo = config.development;
 const baseDePruebas = config.test.database;
 
@@ -106,7 +110,7 @@ const principal = async () => {
         [desarrollo.database]
       );
       await servidor.query(`DROP DATABASE ${citar(desarrollo.database)}`);
-      const fotos = borrarFotosSubidas();
+      const fotos = conservarFotos ? 0 : borrarFotosSubidas();
       listo(`Base "${desarrollo.database}" borrada${fotos > 0 ? ` junto con ${fotos} fotos subidas` : ''}`);
     }
 

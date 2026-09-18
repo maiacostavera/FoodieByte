@@ -220,6 +220,7 @@ para cambiar un precio o sumar un plato, se edita ese archivo y se recarga con
 | `npm run dev` | Levanta la API (puerto 3000) y la web (puerto 5173) juntas |
 | `npm run demo:reiniciar` | **Borra** la base y las fotos subidas, y vuelve a cargar la demo con fechas de hoy |
 | `npm test` | Pruebas de integración de la API |
+| `npm run test:e2e` | Pruebas de punta a punta en el navegador (ver [Pruebas](#pruebas)) |
 | `npm run lint` · `npm run build` | Lint y build del frontend |
 
 **server**
@@ -564,7 +565,36 @@ aborta el arranque en producción si falta `JWT_SECRET`.
 
 ## Pruebas
 
-Las pruebas corren contra una base **aparte** (`DB_NAME_TEST`, por defecto
+Hay dos baterías, y el CI corre las dos en cada pull request:
+
+| Comando (en la raíz) | Qué prueba |
+|---|---|
+| `npm test` | La API, con 77 escenarios contra PostgreSQL real |
+| `npm run test:e2e` | La aplicación completa en un navegador, como la usaría una persona |
+
+### Pruebas de punta a punta
+
+`npm run test:e2e` levanta la API y la web en puertos propios (3100 y 5174), con
+una base aparte (`foodiebyte_e2e`) que se vuelve a armar con la demo en cada
+corrida. Se pueden correr con la aplicación abierta y no tocan tus datos.
+
+Recorren en el navegador los flujos principales de cada rol:
+
+- **Visitante**: portada con los 45 platos, búsqueda, filtros por categoría y por local, orden por precio, ficha pública, botón atrás, pantallas privadas que piden ingresar y vuelven, y las preguntas frecuentes.
+- **Cliente y local**: una compra de dos unidades que descuenta el stock en el catálogo sin recargar; el local la rechaza y el stock vuelve; el local despacha otro pedido y el cliente lo ve enviado; el local responde una consulta.
+- **Alta de un local**: registro, solicitud, aprobación del administrador, ingreso con el rol nuevo, alta de un plato con foto que aparece en el catálogo, y su baja.
+- **Administrador**: indicadores, gráfico, ranking, liquidaciones y pedidos; una cuenta desactivada no puede entrar y vuelve a poder al reactivarla.
+- **Celular**: una columna de tarjetas, carrito a pantalla completa y nada que se salga del ancho.
+
+Cada prueba falla también si la página muestra un error en la consola.
+
+Localmente usan el Google Chrome instalado. Si no lo tenés, instalá el
+navegador de Playwright una vez con `npx playwright install chromium` y corré
+las pruebas con la variable `E2E_CHROMIUM=1`.
+
+### Pruebas de la API
+
+Corren contra una base **aparte** (`DB_NAME_TEST`, por defecto
 `foodiebyte_test`), así nunca tocan los datos de desarrollo.
 
 ```bash
@@ -592,8 +622,13 @@ escenarios críticos del sistema, agrupados en:
 ### Integración continua
 
 Cada push a `main` o `develop`, y cada pull request hacia esas ramas, corre en
-GitHub Actions (`.github/workflows/ci.yml`): las pruebas de la API contra un
-PostgreSQL descartable, y el lint y el build del frontend.
+GitHub Actions (`.github/workflows/ci.yml`) cuatro verificaciones, cada una con
+un PostgreSQL descartable cuando lo necesita:
+
+1. Las pruebas de la API.
+2. El lint y el build del frontend.
+3. Una instalación desde cero con `npm run setup`, como la haría alguien que recién clona el repositorio.
+4. Las pruebas de punta a punta con Playwright. Si fallan, el reporte con capturas queda como artefacto del job.
 
 ---
 

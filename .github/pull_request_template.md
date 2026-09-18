@@ -10,6 +10,7 @@
 
 - [ ] `server`: `npm test`
 - [ ] `client`: `npm run lint` y `npm run build`
+- [ ] Raíz: `npm run test:e2e` (si toca la interfaz o un flujo)
 - [ ] Probado a mano en el navegador (si toca la interfaz)
 
 ## Para revisar

@@ -10,12 +10,14 @@
     "demo:reiniciar": "npm --prefix server run db:reset",
     "test": "npm --prefix server test",
     "lint": "npm --prefix client run lint",
-    "build": "npm --prefix client run build"
+    "build": "npm --prefix client run build",
+    "test:e2e": "playwright test"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "concurrently": "^9.2.4"
   }
 }
