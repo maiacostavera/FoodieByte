@@ -258,6 +258,7 @@ documenta cada variable.
 | `PORT` | Puerto de la API (por defecto `3000`) |
 | `CORS_ORIGIN` | Origen del frontend habilitado; admite varios separados por coma |
 | `COMISION_PLATAFORMA` | Comisión sobre las ventas concretadas (`0.05` = 5 %) |
+| `ZONA_HORARIA` | Zona con la que se agrupan las ventas por día (por defecto `America/Argentina/Buenos_Aires`) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Credenciales del administrador que crean los seeders |
 | `DEMO_PASSWORD` | Contraseña de las demás cuentas de la demo (locales y clientes) |
 | `MYSQL_*` | Solo para la migración puntual desde MySQL; se pueden borrar después |

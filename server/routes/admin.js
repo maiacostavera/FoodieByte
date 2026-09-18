@@ -8,6 +8,7 @@ const { autenticar, requiereRol } = require('../middleware/auth');
 const { validarIdDeRuta } = require('../middleware/validarId');
 const { ROLES, COMISION_PLATAFORMA } = require('../config/seguridad');
 const { responderError } = require('../utils/errores');
+const { ventasPorDia, masVendidos } = require('../utils/estadisticas');
 
 // Todas las rutas de este router son exclusivas del administrador.
 router.use(autenticar, requiereRol(ROLES.ADMIN));
@@ -189,6 +190,7 @@ router.get('/estadisticas', async (req, res) => {
     ]);
 
     const volumenVentas = redondear(ventasConcretadas);
+    const [ventasDiarias, platosMasVendidos] = await Promise.all([ventasPorDia(), masVendidos()]);
 
     res.json({
       usuariosTotales,
@@ -198,7 +200,9 @@ router.get('/estadisticas', async (req, res) => {
       pedidosTotales,
       volumenVentas,
       porcentajeComision: COMISION_PLATAFORMA,
-      gananciasPlataforma: redondear(volumenVentas * COMISION_PLATAFORMA)
+      gananciasPlataforma: redondear(volumenVentas * COMISION_PLATAFORMA),
+      ventasPorDia: ventasDiarias,
+      masVendidos: platosMasVendidos
     });
   } catch (err) {
     responderError(res, err, { contexto: 'Error al obtener las estadísticas', mensaje: 'Error interno al obtener las estadísticas.' });
