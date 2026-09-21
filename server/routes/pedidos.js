@@ -102,7 +102,10 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
   const consolidados = new Map();
   for (const item of productos) {
     const id = Number(item?.id);
-    const cantidad = parseInt(item?.cantidad, 10);
+    // Number y no parseInt: parseInt("1.5") devuelve 1 y la validación de entero
+    // pasa, así que una cantidad decimal se cobraba redondeada hacia abajo sin
+    // avisar. Con Number, 1.5 sigue siendo 1.5 y el pedido se rechaza.
+    const cantidad = Number(item?.cantidad);
 
     // Un id por encima del máximo de INTEGER haría fallar la consulta en PostgreSQL.
     if (!Number.isInteger(id) || id <= 0 || id > MAX_INTEGER) {

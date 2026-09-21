@@ -260,6 +260,20 @@ async function ejecutar() {
     assert.strictEqual(negativa.estado, 400);
   });
 
+  await prueba('Una cantidad decimal se rechaza y no se redondea en silencio', async () => {
+    const stockAntes = (await platoLocal1.reload()).stock;
+    const { estado, datos } = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token,
+      body: { ...ENTREGA, productos: [{ id: platoLocal1.id, cantidad: 1.5 }] }
+    });
+
+    // Con parseInt, 1.5 pasaba la validación como 1: el pedido se confirmaba
+    // por una cantidad distinta de la pedida, sin ningún aviso.
+    assert.strictEqual(estado, 400, `Se aceptó una cantidad decimal (respondió ${estado})`);
+    assert.ok(!datos.pedido, 'Se creó un pedido con una cantidad decimal');
+    assert.strictEqual((await platoLocal1.reload()).stock, stockAntes, 'Una cantidad decimal descontó stock');
+  });
+
   await prueba('Un pedido sin dirección de entrega se rechaza sin tocar el stock', async () => {
     const stockAntes = (await platoLocal1.reload()).stock;
     const sinDireccion = await pedir('POST', '/api/pedidos', {
