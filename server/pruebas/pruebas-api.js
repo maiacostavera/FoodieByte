@@ -614,6 +614,146 @@ async function ejecutar() {
   });
 
   // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  seccion('NOTIFICACIONES');
+
+  await prueba('Comprar avisa al cliente y al local, cada uno con su parte', async () => {
+    const antesCliente = await pedir('GET', '/api/notificaciones', { token: cliente2.token });
+    const antesLocal = await pedir('GET', '/api/notificaciones', { token: local1.token });
+
+    const compra = await pedir('POST', '/api/pedidos', {
+      token: cliente2.token,
+      body: { ...ENTREGA, productos: [{ id: platoLocal1.id, cantidad: 1 }] }
+    });
+    assert.strictEqual(compra.estado, 201);
+
+    const despuesCliente = await pedir('GET', '/api/notificaciones', { token: cliente2.token });
+    const despuesLocal = await pedir('GET', '/api/notificaciones', { token: local1.token });
+
+    const confirmacion = despuesCliente.datos.notificaciones[0];
+    assert.strictEqual(confirmacion.tipo, 'pedido_confirmado');
+    assert.strictEqual(confirmacion.pedidoId, compra.datos.pedido.id);
+    assert.strictEqual(despuesCliente.datos.sinLeer, antesCliente.datos.sinLeer + 1);
+
+    const comanda = despuesLocal.datos.notificaciones[0];
+    assert.strictEqual(comanda.tipo, 'pedido_recibido');
+    assert.strictEqual(comanda.pedidoId, compra.datos.pedido.id);
+    assert.strictEqual(despuesLocal.datos.sinLeer, antesLocal.datos.sinLeer + 1);
+
+    // El otro local no participó de esta compra: no le llega nada.
+    const otroLocal = await pedir('GET', '/api/notificaciones', { token: local2.token });
+    assert.ok(
+      !otroLocal.datos.notificaciones.some(n => n.pedidoId === compra.datos.pedido.id),
+      'Un local recibió el aviso de un pedido que no lo incluye'
+    );
+  });
+
+  await prueba('Despachar un pedido avisa a quien lo compró', async () => {
+    // Las pruebas anteriores fueron consumiendo el stock de este plato.
+    await platoLocal1.update({ stock: 5 });
+
+    const compra = await pedir('POST', '/api/pedidos', {
+      token: cliente2.token,
+      body: { ...ENTREGA, productos: [{ id: platoLocal1.id, cantidad: 1 }] }
+    });
+    assert.strictEqual(compra.estado, 201, `No se pudo comprar: ${compra.datos?.mensaje}`);
+
+    await pedir('PUT', `/api/pedidos/${compra.datos.pedido.id}/estado`, {
+      token: local1.token,
+      body: { nuevoEstado: 'Enviado' }
+    });
+
+    const { datos } = await pedir('GET', '/api/notificaciones', { token: cliente2.token });
+    const aviso = datos.notificaciones.find(n => n.pedidoId === compra.datos.pedido.id && n.tipo === 'pedido_enviado');
+    assert.ok(aviso, 'El cliente no recibió el aviso de que su pedido salió');
+  });
+
+  await prueba('Preguntar avisa al local y responder avisa a quien preguntó', async () => {
+    const consulta = await pedir('POST', `/api/platos/${platoLocal1.id}/preguntas`, {
+      token: cliente2.token,
+      body: { texto: '¿Tiene opción sin sal?' }
+    });
+    assert.strictEqual(consulta.estado, 201);
+
+    const alLocal = await pedir('GET', '/api/notificaciones', { token: local1.token });
+    assert.strictEqual(alLocal.datos.notificaciones[0].tipo, 'pregunta_recibida');
+
+    await pedir('PUT', `/api/platos/${platoLocal1.id}/preguntas/${consulta.datos.pregunta.id}`, {
+      token: local1.token,
+      body: { respuesta: 'Sí, avisá al pedir.' }
+    });
+
+    const alCliente = await pedir('GET', '/api/notificaciones', { token: cliente2.token });
+    assert.strictEqual(alCliente.datos.notificaciones[0].tipo, 'pregunta_respondida');
+  });
+
+  await prueba('Pedir vender avisa a los administradores', async () => {
+    const postulante = await crearUsuario('Postulante', 'foodie');
+    await pedir('POST', '/api/usuarios/solicitar-vendedor', {
+      token: postulante.token,
+      body: {
+        nombreLocal: 'Local de Prueba',
+        descripcionProductos: 'Comida casera',
+        telefono: '1122334455',
+        direccion: 'Calle Falsa 123',
+        categoria: 'Empanadas'
+      }
+    });
+
+    const { datos } = await pedir('GET', '/api/notificaciones', { token: admin.token });
+    const aviso = datos.notificaciones.find(n => n.tipo === 'solicitud_local' && n.detalle?.includes('Local de Prueba'));
+    assert.ok(aviso, 'El administrador no fue avisado de la solicitud');
+  });
+
+  await prueba('Nadie puede leer ni marcar las notificaciones de otro', async () => {
+    const ajenas = await pedir('GET', '/api/notificaciones', { token: local1.token });
+    const objetivo = ajenas.datos.notificaciones[0];
+
+    const propias = await pedir('GET', '/api/notificaciones', { token: cliente1.token });
+    assert.ok(
+      !propias.datos.notificaciones.some(n => n.id === objetivo.id),
+      'El listado devolvió una notificación ajena'
+    );
+
+    // El where filtra por usuario, así que una notificación de otro "no existe".
+    const intento = await pedir('PUT', `/api/notificaciones/${objetivo.id}/leida`, { token: cliente1.token });
+    assert.strictEqual(intento.estado, 404);
+
+    const sigueIgual = await pedir('GET', '/api/notificaciones', { token: local1.token });
+    assert.strictEqual(
+      sigueIgual.datos.notificaciones.find(n => n.id === objetivo.id).leida,
+      objetivo.leida,
+      'Un tercero alteró el estado de una notificación ajena'
+    );
+  });
+
+  await prueba('Marcar todas como leídas solo afecta a las propias', async () => {
+    const antesLocal = await pedir('GET', '/api/notificaciones', { token: local1.token });
+    await pedir('PUT', '/api/notificaciones/leidas', { token: cliente2.token });
+
+    const cliente = await pedir('GET', '/api/notificaciones', { token: cliente2.token });
+    const despuesLocal = await pedir('GET', '/api/notificaciones', { token: local1.token });
+
+    assert.strictEqual(cliente.datos.sinLeer, 0);
+    assert.strictEqual(despuesLocal.datos.sinLeer, antesLocal.datos.sinLeer);
+  });
+
+  await prueba('Sin sesión no se accede a las notificaciones', async () => {
+    assert.strictEqual((await pedir('GET', '/api/notificaciones')).estado, 401);
+    assert.strictEqual((await pedir('GET', '/api/notificaciones/sin-leer')).estado, 401);
+  });
+
+  await prueba('El local ya no recibe el correo personal del cliente', async () => {
+    const { datos } = await pedir('GET', '/api/pedidos/comandas', { token: local1.token });
+    assert.ok(datos.length > 0, 'El local no tiene comandas para verificar');
+    assert.ok(
+      datos.every(pedido => pedido.usuario?.email === undefined),
+      'Las comandas siguen incluyendo el correo del cliente'
+    );
+    assert.ok(datos[0].usuario?.nombre, 'Falta el nombre del cliente en la comanda');
+  });
+
+  // -------------------------------------------------------------------------
   seccion('CATÁLOGO PÚBLICO');
 
   await prueba('El catálogo y las categorías son accesibles sin iniciar sesión', async () => {

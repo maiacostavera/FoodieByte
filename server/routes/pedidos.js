@@ -9,6 +9,7 @@ const { validarIdDeRuta } = require('../middleware/validarId');
 const { ROLES } = require('../config/seguridad');
 const { LIMITES, MAX_INTEGER } = require('../config/limites');
 const { responderError } = require('../utils/errores');
+const avisos = require('../utils/notificaciones');
 const { ventasPorDia, masVendidos } = require('../utils/estadisticas');
 
 // Una línea pendiente solo puede pasar a uno de estos estados, y ahí queda:
@@ -194,6 +195,13 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
         { transaction: t }
       );
 
+      // Dentro de la transacción: si el pedido se revierte, los avisos también.
+      await avisos.pedidoCreado({
+        pedido: nuevoPedido,
+        lineas,
+        compradorId: req.usuario.id
+      }, t);
+
       // La respuesta se arma con lo que ya se guardó: no hace falta volver a
       // consultar la base después de confirmar.
       return { ...nuevoPedido.toJSON(), items: items.map(item => item.toJSON()) };
@@ -248,7 +256,10 @@ router.get('/comandas', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), as
           where: esAdmin ? undefined : { vendedorId: req.usuario.id },
           include: [{ model: Usuario, as: 'vendedor', attributes: ['id', 'nombre', 'nombre_local'] }]
         },
-        { model: Usuario, as: 'usuario', attributes: ['id', 'nombre', 'email'] }
+        // Sin el email: para preparar y despachar alcanzan el nombre y la
+        // dirección de entrega. El local no necesita el correo personal de
+        // cada cliente, y la aplicación tampoco lo mostraba.
+        { model: Usuario, as: 'usuario', attributes: ['id', 'nombre'] }
       ],
       order: [['createdAt', 'DESC']]
     });
@@ -312,6 +323,18 @@ router.put('/:id/estado', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), 
       if (nuevoEstado === 'Rechazado') {
         await reponerStock(pendientes, t);
       }
+
+      // Quien compró se entera de lo que hizo el local con su parte.
+      const local = await Usuario.findByPk(req.usuario.id, {
+        attributes: ['nombre', 'nombre_local'],
+        transaction: t
+      });
+      await avisos.estadoDePedidoCambiado({
+        pedidoId: pedido.id,
+        compradorId: pedido.usuarioId,
+        nuevoEstado,
+        nombreLocal: local?.nombre_local || local?.nombre
+      }, t);
 
       return sincronizarEstadoDelPedido(pedido.id, t);
     });

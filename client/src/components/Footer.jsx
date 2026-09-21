@@ -7,7 +7,6 @@ function Footer({ categorias, alElegirCategoria, alAbrirPagina }) {
             <div className="contenedor pie__grilla">
                 <div className="pie__marca">
                     <img src={logo} alt="FoodieByte" />
-                    <p>La comunidad gastronómica de la UCES: los locales del barrio y quienes los eligen, en un solo lugar.</p>
                 </div>
 
                 <nav aria-label="Categorías">
@@ -41,7 +40,6 @@ function Footer({ categorias, alElegirCategoria, alAbrirPagina }) {
 
             <div className="contenedor pie__base">
                 <span>© 2026 FoodieByte · Proyecto final UCES</span>
-                <span>Hecho con React, Express y PostgreSQL</span>
             </div>
         </footer>
     );

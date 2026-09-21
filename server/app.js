@@ -10,6 +10,7 @@ const path = require('path');
 
 const platosRouter = require('./routes/platos');
 const usuariosRouter = require('./routes/usuarios');
+const notificacionesRouter = require('./routes/notificaciones');
 const pedidosRouter = require('./routes/pedidos');
 const adminRouter = require('./routes/admin');
 const { limitarLogin, limitarRegistro } = require('./middleware/limitarIntentos');
@@ -68,6 +69,7 @@ app.use('/api/platos', platosRouter);
 app.use('/api/usuarios', usuariosRouter);
 app.use('/api/pedidos', pedidosRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/notificaciones', notificacionesRouter);
 
 // Ruta no encontrada
 app.use((req, res) => {

@@ -4,6 +4,7 @@ import { navegar, RUTAS } from '../utils/rutas';
 import { iniciales } from '../utils/formato';
 import { LIMITES } from '../utils/limites';
 import Icono from './Icono';
+import Notificaciones from './Notificaciones';
 import Logo from './Logo';
 
 const NOMBRE_DEL_ROL = { foodie: 'Cliente', vendedor: 'Local', admin: 'Administrador' };
@@ -71,6 +72,9 @@ function Navbar({ busqueda, alBuscar, mostrarBuscador, alIrAlInicio, alAbrirCarr
                             <Icono nombre="panel" tamano={16} /><span className="solo-escritorio">Panel de gestión</span>
                         </button>
                     )}
+
+                    {/* La campanita es para los tres roles: cambia qué avisa, no quién la ve. */}
+                    {usuario && <Notificaciones />}
 
                     {usuario && <MenuUsuario usuario={usuario} alCerrarSesion={alCerrarSesion} alQuererVender={alQuererVender} />}
                 </nav>

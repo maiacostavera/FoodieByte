@@ -11,6 +11,7 @@ const { ROLES } = require('../config/seguridad');
 const { CATEGORIAS } = require('../config/categorias');
 const { LIMITES } = require('../config/limites');
 const { responderError } = require('../utils/errores');
+const avisos = require('../utils/notificaciones');
 const { CARPETA_PLATOS, esImagenValida, borrarArchivo } = require('../utils/imagenes');
 
 // Los ids de la URL se validan antes de consultar la base.
@@ -358,6 +359,13 @@ router.post('/:id/preguntas', autenticar, requiereRol(ROLES.FOODIE), async (req,
       texto
     });
 
+    await avisos.preguntaRecibida({
+      vendedorId: plato.vendedorId,
+      platoId: plato.id,
+      nombrePlato: plato.nombre,
+      texto
+    });
+
     const pregunta = await Pregunta.findByPk(creada.id, { include: [incluirAutor] });
     res.status(201).json({ mensaje: 'Consulta enviada. El vendedor te responderá pronto.', pregunta });
   } catch (err) {
@@ -375,7 +383,7 @@ router.put('/:platoId/preguntas/:preguntaId', autenticar, requiereRol(ROLES.VEND
 
     const pregunta = await Pregunta.findOne({
       where: { id: req.params.preguntaId, platoId: req.params.platoId },
-      include: [{ model: Plato, as: 'plato', attributes: ['id', 'vendedorId'] }]
+      include: [{ model: Plato, as: 'plato', attributes: ['id', 'nombre', 'vendedorId'] }]
     });
     if (!pregunta) return res.status(404).json({ mensaje: 'Pregunta no encontrada.' });
 
@@ -384,6 +392,13 @@ router.put('/:platoId/preguntas/:preguntaId', autenticar, requiereRol(ROLES.VEND
     }
 
     await pregunta.update({ respuesta, respondidaEn: new Date() });
+
+    await avisos.preguntaRespondida({
+      usuarioId: pregunta.usuarioId,
+      platoId: pregunta.plato.id,
+      nombrePlato: pregunta.plato.nombre,
+      respuesta
+    });
 
     const actualizada = await Pregunta.findByPk(pregunta.id, { include: [incluirAutor] });
     res.json({ mensaje: 'Respuesta publicada.', pregunta: actualizada });

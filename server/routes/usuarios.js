@@ -10,6 +10,7 @@ const { JWT_SECRET, JWT_EXPIRES_IN, ROLES } = require('../config/seguridad');
 const { CATEGORIAS } = require('../config/categorias');
 const { LIMITES } = require('../config/limites');
 const { responderError } = require('../utils/errores');
+const avisos = require('../utils/notificaciones');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -188,6 +189,12 @@ router.post('/solicitar-vendedor', autenticar, async (req, res) => {
       direccion,
       categoria_local: categoria
     });
+
+    await avisos.solicitudDeLocal({
+      nombreSolicitante: usuario.nombre,
+      nombreLocal: nombreLocal.trim()
+    });
+
 
     res.json({ mensaje: '¡Solicitud enviada con éxito! Un administrador la revisará pronto.' });
   } catch (err) {
