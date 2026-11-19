@@ -40,6 +40,11 @@ request y el porqué, en [`PROJECT.md`](PROJECT.md).
   tarjetas tienen un brillo que sigue al mouse y agregar un plato suelta chispas.
   Respetan "reducir movimiento" y se leen bien con lector de pantalla. Detalle en
   `client/README.md`.
+- **Métricas del panel**: el gráfico de ventas llena su tarjeta y sus barras crecen
+  desde la base; al lado del total del período, la variación contra los 7 días
+  anteriores (con flecha y signo, no solo color). Las barras del ranking se
+  llenan al aparecer. *Liquidaciones* suma tres indicadores (vendido, comisión y
+  neto) y una barra con la participación de cada local en las ventas.
 
 ### Accesibilidad y diseño
 

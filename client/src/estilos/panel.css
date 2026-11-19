@@ -97,7 +97,6 @@
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
@@ -160,12 +159,22 @@
 /* Gráfico de ventas por día */
 .grafico {
   position: relative;
+  flex: 1;
+  min-height: 240px;
 }
 
+/* El SVG se dibuja al tamaño medido del contenedor y no aporta alto propio:
+   así el gráfico ocupa todo el alto que le deja la tarjeta de al lado. */
 .grafico svg {
-  width: 100%;
-  height: auto;
+  position: absolute;
+  inset: 0;
+  display: block;
   overflow: visible;
+}
+
+.bloque--grafico {
+  display: flex;
+  flex-direction: column;
 }
 
 .grafico__grilla {
@@ -193,6 +202,13 @@
   fill: var(--primario);
   opacity: 0.78;
   transition: opacity var(--rapido), fill var(--rapido);
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: crecer-barra 700ms var(--curva) both;
+}
+
+@keyframes crecer-barra {
+  from { transform: scaleY(0); }
 }
 
 .grafico__barra--hoy {
@@ -654,4 +670,104 @@
 
 .parte-pedido__acciones {
   justify-content: flex-start;
+}
+
+/* Las barras del ranking se llenan al aparecer, una tras otra. */
+.ranking__barra > span {
+  transform-origin: left center;
+  animation: llenar-barra 800ms var(--curva) both;
+  animation-delay: var(--retraso, 0ms);
+}
+
+@keyframes llenar-barra {
+  from { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grafico__barra,
+  .ranking__barra > span,
+  .meter__relleno {
+    animation: none;
+  }
+}
+
+/* Variación semanal, debajo del total del gráfico de ventas */
+.bloque__totales {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.variacion-semanal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--texto-3);
+}
+
+.variacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radio-pildora);
+  font-weight: 700;
+  background: var(--superficie-2);
+  color: var(--texto-2);
+}
+
+.variacion--sube {
+  background: var(--exito-suave);
+  color: var(--exito);
+}
+
+.variacion--baja {
+  background: var(--peligro-suave);
+  color: var(--peligro);
+}
+
+/* Liquidaciones: tres indicadores arriba de la tabla */
+.grilla-kpi--tres {
+  margin-bottom: 16px;
+}
+
+@media (min-width: 900px) {
+  .grilla-kpi--tres {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Participación de cada local: barra fina con el riel en un tono más claro
+   del mismo rojo, y el porcentaje del total al lado. */
+.participacion {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--texto-3);
+  white-space: nowrap;
+}
+
+.meter {
+  width: 72px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radio-pildora);
+  background: var(--primario-suave);
+}
+
+.meter__relleno {
+  display: block;
+  height: 100%;
+  border-radius: var(--radio-pildora);
+  background: var(--primario);
+  transform-origin: left center;
+  animation: llenar-barra 800ms var(--curva) both;
 }

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatearMoneda, formatearMonedaCorta } from '../../utils/formato';
 
-// Medidas del dibujo. El SVG escala con el ancho disponible y conserva la proporción.
-const ANCHO = 640;
-const ALTO = 230;
+// El gráfico se dibuja al tamaño real de su contenedor (lo mide un
+// ResizeObserver): así llena el alto de la tarjeta y el texto de los ejes
+// queda siempre en 11 px, sin escalarse con el ancho.
+const TAMANO_INICIAL = { ancho: 640, alto: 240 };
 const MARGEN = { arriba: 14, derecha: 6, abajo: 28, izquierda: 56 };
 
 /** Techo "redondo" para el eje: 1, 2, 2,5 o 5 por una potencia de 10. */
@@ -29,19 +30,33 @@ const fechaLarga = (fecha) =>
  */
 function GraficoVentas({ serie }) {
     const [activo, setActivo] = useState(null);
+    const contenedor = useRef(null);
+    const [{ ancho: ANCHO, alto: ALTO }, setTamano] = useState(TAMANO_INICIAL);
+
+    useEffect(() => {
+        const elemento = contenedor.current;
+        if (!elemento || typeof ResizeObserver === 'undefined') return undefined;
+        const observador = new ResizeObserver(([entrada]) => {
+            const { width, height } = entrada.contentRect;
+            if (width > 0 && height > 0) setTamano({ ancho: Math.round(width), alto: Math.round(height) });
+        });
+        observador.observe(elemento);
+        return () => observador.disconnect();
+    }, []);
 
     const techo = techoDelEje(Math.max(0, ...serie.map(dia => dia.total)));
     const anchoUtil = ANCHO - MARGEN.izquierda - MARGEN.derecha;
     const altoUtil = ALTO - MARGEN.arriba - MARGEN.abajo;
     const paso = anchoUtil / Math.max(serie.length, 1);
-    const anchoBarra = Math.min(26, paso - 8);
+    // Como mucho 24 px: el resto del espacio de cada día queda de aire.
+    const anchoBarra = Math.max(4, Math.min(24, paso - 8));
     const y = (valor) => MARGEN.arriba + altoUtil - (valor / techo) * altoUtil;
     const centro = (indice) => MARGEN.izquierda + indice * paso + paso / 2;
     const diaActivo = activo !== null ? serie[activo] : null;
 
     return (
-        <div className="grafico">
-            <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} aria-hidden="true" onMouseLeave={() => setActivo(null)}>
+        <div className="grafico" ref={contenedor}>
+            <svg width={ANCHO} height={ALTO} viewBox={`0 0 ${ANCHO} ${ALTO}`} aria-hidden="true" onMouseLeave={() => setActivo(null)}>
                 {[0, 0.5, 1].map(fraccion => {
                     const valor = techo * fraccion;
                     return (
@@ -65,7 +80,9 @@ function GraficoVentas({ serie }) {
                             <rect className="grafico__objetivo" x={MARGEN.izquierda + indice * paso} y={MARGEN.arriba}
                                 width={paso} height={altoUtil} />
                             {alto > 0 && (
+                                // Las barras crecen desde la base al aparecer, una tras otra.
                                 <path className={`grafico__barra${esHoy ? ' grafico__barra--hoy' : ''}`}
+                                    style={{ animationDelay: `${indice * 35}ms` }}
                                     d={barra(centro(indice) - anchoBarra / 2, y(dia.total), anchoBarra, alto, 4)} />
                             )}
                             <text className={`grafico__eje${esHoy ? ' grafico__eje--hoy' : ''}`}
@@ -80,8 +97,8 @@ function GraficoVentas({ serie }) {
             {diaActivo && (
                 <div className="grafico__tooltip"
                     style={{
-                        left: `${Math.min(88, Math.max(12, (centro(activo) / ANCHO) * 100))}%`,
-                        top: `${(y(diaActivo.total) / ALTO) * 100}%`
+                        left: `${Math.min(ANCHO - 90, Math.max(90, centro(activo)))}px`,
+                        top: `${y(diaActivo.total)}px`
                     }}>
                     <span>{fechaLarga(diaActivo.fecha)}</span>
                     <strong>{formatearMoneda(diaActivo.total)}</strong>

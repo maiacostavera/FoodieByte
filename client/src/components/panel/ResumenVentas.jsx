@@ -1,7 +1,21 @@
 import { formatearMoneda } from '../../utils/formato';
 import Icono from '../Icono';
-import CountUp from '../reactbits/CountUp';
+import Indicador, { Variacion } from './Indicador';
 import GraficoVentas from './GraficoVentas';
+
+/**
+ * Ventas de los últimos 7 días (con hoy) contra los 7 anteriores, en
+ * porcentaje: las dos mitades del gráfico de 14 días. Sin ventas en la semana
+ * anterior no hay contra qué comparar y devuelve null.
+ */
+const variacionSemanal = (serie) => {
+    if (serie.length < 14) return null;
+    const sumar = (dias) => dias.reduce((acc, dia) => acc + dia.total, 0);
+    const actual = sumar(serie.slice(-7));
+    const anterior = sumar(serie.slice(-14, -7));
+    if (anterior === 0) return null;
+    return Math.round(((actual - anterior) / anterior) * 100);
+};
 
 /** Pestaña "Resumen": indicadores, ventas de las últimas dos semanas y ranking de platos. */
 function ResumenVentas({ esAdmin, estadisticas, alIrA }) {
@@ -39,13 +53,16 @@ function ResumenVentas({ esAdmin, estadisticas, alIrA }) {
             </div>
 
             <div className="grilla-resumen">
-                <section className="bloque tarjeta" aria-labelledby="titulo-ventas">
+                <section className="bloque bloque--grafico tarjeta" aria-labelledby="titulo-ventas">
                     <div className="bloque__cabecera">
                         <div>
                             <h2 className="bloque__titulo" id="titulo-ventas">Ventas de los últimos 14 días</h2>
                             <p className="bloque__subtitulo">Solo lo despachado{esAdmin ? ', de todos los locales' : ''}</p>
                         </div>
-                        <p className="bloque__destacado">{formatearMoneda(totalDelPeriodo)}</p>
+                        <div className="bloque__totales">
+                            <p className="bloque__destacado">{formatearMoneda(totalDelPeriodo)}</p>
+                            <Variacion porcentaje={variacionSemanal(serie)} />
+                        </div>
                     </div>
                     <GraficoVentas serie={serie} />
                 </section>
@@ -83,30 +100,6 @@ function ResumenVentas({ esAdmin, estadisticas, alIrA }) {
     );
 }
 
-/**
- * Las cifras enteras cuentan hasta su valor al aparecer (CountUp de React
- * Bits), con el punto de miles de siempre. Un importe con centavos se muestra
- * fijo: el componente usa punto decimal y acá va la coma.
- */
-function Cifra({ valor, moneda }) {
-    if (typeof valor === 'number' && Number.isInteger(valor)) {
-        return <CountUp to={valor} separator="." prefix={moneda ? '$' : ''} duration={1.2} />;
-    }
-    return moneda ? formatearMoneda(valor) : valor;
-}
-
-function Indicador({ titulo, valor, moneda, icono, tono, detalle }) {
-    return (
-        <div className={`kpi tarjeta${tono ? ` kpi--${tono}` : ''}`}>
-            <div className="kpi__cabecera">
-                <span>{titulo}</span>
-                <span className="kpi__icono"><Icono nombre={icono} tamano={18} /></span>
-            </div>
-            <strong className="kpi__valor"><Cifra valor={valor} moneda={moneda} /></strong>
-            {detalle && <span className="kpi__detalle">{detalle}</span>}
-        </div>
-    );
-}
 
 function Ranking({ platos, mostrarLocal }) {
     if (platos.length === 0) {
@@ -124,7 +117,7 @@ function Ranking({ platos, mostrarLocal }) {
                     </span>
                     <span className="ranking__unidades">{plato.unidades} u.</span>
                     <span className="ranking__barra" aria-hidden="true">
-                        <span style={{ width: `${(plato.unidades / maximo) * 100}%` }} />
+                        <span style={{ width: `${(plato.unidades / maximo) * 100}%`, '--retraso': `${indice * 70}ms` }} />
                     </span>
                 </li>
             ))}
