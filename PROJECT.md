@@ -27,11 +27,11 @@ Todo está en `main` como **versión 1.0.1** (ver [`CHANGELOG.md`](CHANGELOG.md)
 
 | | Estado |
 |---|---|
-| Código | ✅ `main` tiene la versión 1.0.1 y `develop` está al día |
+| Código | ✅ `main` tiene la versión 1.0.1 más dos cambios posteriores (ver `CHANGELOG.md`, *Sin publicar*) |
 | Instalación | ✅ `npm run setup` y `npm run dev` desde la raíz |
 | Datos de la demo | ✅ 7 locales, 45 platos con foto, seis semanas de pedidos |
-| Pruebas de la API | ✅ 80 escenarios contra PostgreSQL real |
-| Pruebas de punta a punta | ✅ 13 recorridos con Playwright, en escritorio y celular |
+| Pruebas de la API | ✅ 101 escenarios contra PostgreSQL real |
+| Pruebas de punta a punta | ✅ 14 recorridos con Playwright, en escritorio y celular |
 | Integración continua | ✅ 4 jobs en cada pull request: API, frontend, instalación desde cero y Playwright |
 | Dependencias | ✅ `npm audit` sin vulnerabilidades en la raíz, el servidor y el cliente |
 | Datos del MySQL original | ➖ Opcional: para presentar los reemplaza la demo (ver más abajo) |
@@ -310,7 +310,9 @@ despachó; las líneas rechazadas conservan su estado).
 Preguntas ficticias de "Carlos" y "Ana" que aparecían en **todos** los platos;
 "(12 valoraciones)" fijo con estrellas que no guardaban nada; notificaciones
 falsas del vendedor ("Comanda #1024"). Las preguntas se implementaron de verdad;
-valoraciones y notificaciones se eliminaron por decisión de la dueña.
+valoraciones y notificaciones se eliminaron por decisión de la dueña. Más
+adelante las notificaciones se implementaron de verdad: la campana guarda cada
+aviso en la tabla `Notificaciones`.
 
 ### Bugs que rompían
 
@@ -589,7 +591,7 @@ FoodieByte/
 ├── package.json                   setup · dev · demo:reiniciar · test · test:e2e
 ├── scripts/                       Instalador (instalar.js) y chequeo previo a npm run dev
 ├── playwright.config.js           Pruebas de punta a punta: puertos y base propios
-├── e2e/                           13 recorridos de Playwright, por rol
+├── e2e/                           14 recorridos de Playwright, por rol
 ├── CHANGELOG.md                   Qué trae cada versión
 ├── CONTRIBUTING.md                Ramas, commits y pull requests
 ├── .github/                       CI (4 jobs) y plantilla de pull request
@@ -614,7 +616,7 @@ FoodieByte/
     │   ├── auth.js                Único jwt.verify; rol y estado leídos de la base
     │   ├── validarId.js           Ids de la URL
     │   └── limitarIntentos.js     Fuerza bruta en login y registro
-    ├── migrations/                7 migraciones, esquema versionado
+    ├── migrations/                8 migraciones, esquema versionado
     ├── models/                    Usuario · Plato · Pedido · PedidoItem · Pregunta
     ├── routes/                    usuarios · platos · pedidos · admin
     ├── utils/
@@ -628,7 +630,7 @@ FoodieByte/
     ├── seeders/                   Demo: cuentas, platos con foto, pedidos y consultas
     │   ├── datos/demo.js          Todo el contenido de la demo, en un solo archivo
     │   └── fotos/                 Fotos de los platos (Unsplash, ver CREDITOS.md)
-    └── pruebas/pruebas-api.js     80 pruebas de integración
+    └── pruebas/pruebas-api.js     101 pruebas de integración
 ```
 
 Los endpoints y los códigos de error están listados en el [README](README.md#api).
@@ -640,8 +642,8 @@ Los endpoints y los códigos de error están listados en el [README](README.md#a
 Con PostgreSQL corriendo, desde la raíz:
 
 ```bash
-npm test                 # 80 pruebas de la API, sobre la base de pruebas
-npm run test:e2e         # 13 recorridos en el navegador, sobre su propia base
+npm test                 # 101 pruebas de la API, sobre la base de pruebas
+npm run test:e2e         # 14 recorridos en el navegador, sobre su propia base
 npm run lint             # ESLint del frontend
 npm run build            # build de producción
 ```

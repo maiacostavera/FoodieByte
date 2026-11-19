@@ -632,7 +632,7 @@ Hay dos baterías, y el CI corre las dos en cada pull request:
 
 | Comando (en la raíz) | Qué prueba |
 |---|---|
-| `npm test` | La API, con 80 escenarios contra PostgreSQL real |
+| `npm test` | La API, con 101 escenarios contra PostgreSQL real |
 | `npm run test:e2e` | La aplicación completa en un navegador, como la usaría una persona |
 
 ### Pruebas de punta a punta

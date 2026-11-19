@@ -3,6 +3,50 @@
 Qué trae cada versión de FoodieByte. El detalle de cada cambio está en su pull
 request y el porqué, en [`PROJECT.md`](PROJECT.md).
 
+## Sin publicar
+
+### Funcionalidades
+
+- **Campana de notificaciones** para los tres roles: pedidos, despachos,
+  rechazos, consultas y solicitudes de alta de local.
+- **El administrador resuelve la parte pendiente de cualquier local** desde la
+  pestaña *Pedidos*. Es la única forma de cerrar los pedidos de un local
+  desactivado, que antes quedaban "Pendiente" para siempre: el panel los
+  señala con un aviso. Rechazar devuelve el stock, y el aviso al cliente nombra
+  al local.
+
+### Correcciones
+
+- Un pedido a la API sin cuerpo respondía 500 en las once rutas que reciben
+  datos. Ahora cada una responde con un 400 claro.
+- Las consultas y respuestas que no eran texto daban 500, y la respuesta no
+  tenía largo máximo.
+- El precio y el stock aceptaban texto de más (`"12abc"` quedaba en 12, `"5.7"`
+  en 5). Ahora se rechazan, igual que un precio con más de dos decimales.
+- El pedido aceptaba `true` o `[2]` como cantidades.
+- El administrador podía asignarle un plato a una cuenta de cliente, y el plato
+  no aparecía en ningún lado.
+- Dos envíos del carrito en el mismo instante creaban dos pedidos.
+- Una cantidad decimal se cobraba redondeada hacia abajo.
+- Un local o el admin que entraba a *Mis pedidos* veía una pantalla de compras
+  vacía. Ahora va a su panel.
+- "Quedan 1 unidades" y otros mensajes de stock usan el singular.
+
+### Accesibilidad y diseño
+
+- Los grises de texto secundario, el verde de éxito y el rojo de las
+  iniciales ahora cumplen el contraste mínimo WCAG AA (4,5:1). axe no informa
+  violaciones A/AA en ninguna pantalla.
+- El pie usa el logo vectorial en su versión para fondo oscuro, en lugar de
+  una imagen PNG en una caja blanca.
+
+### Calidad
+
+- `npm audit` en cero en la raíz, el servidor y el cliente.
+- El recorrido de celular esperaba la tarjeta de carga en lugar de un plato
+  real y fallaba siempre.
+- 101 pruebas de la API (antes 89) y 14 recorridos de punta a punta (antes 13).
+
 ## 1.0.1 · 18/09/2026
 
 - **La terminal de `npm run dev` ya no se llena de SQL.** La API muestra solo los
