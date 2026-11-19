@@ -32,6 +32,15 @@ request y el porqué, en [`PROJECT.md`](PROJECT.md).
   vacía. Ahora va a su panel.
 - "Quedan 1 unidades" y otros mensajes de stock usan el singular.
 
+### Diseño
+
+- **Animaciones con [React Bits](https://reactbits.dev)**: el título de la portada
+  rota la comida ("La mejor *pizza* de tu barrio"), las cifras de la portada y del
+  panel cuentan hasta su valor, el botón "Ver el menú" sigue al cursor, las
+  tarjetas tienen un brillo que sigue al mouse y agregar un plato suelta chispas.
+  Respetan "reducir movimiento" y se leen bien con lector de pantalla. Detalle en
+  `client/README.md`.
+
 ### Accesibilidad y diseño
 
 - Los grises de texto secundario, el verde de éxito y el rojo de las

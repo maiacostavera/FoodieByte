@@ -1,6 +1,8 @@
 import { imagenDelPlato } from '../utils/imagenes';
 import { formatearMoneda } from '../utils/formato';
 import Icono from './Icono';
+import ClickSpark from './reactbits/ClickSpark';
+import SpotlightCard from './reactbits/SpotlightCard';
 
 // Con menos de estas unidades, la tarjeta avisa que quedan pocas.
 const POCAS_UNIDADES = 5;
@@ -15,7 +17,14 @@ function TarjetaPlato({ plato, esGestor, alAbrir, alAgregar }) {
     const local = plato.vendedor?.nombre_local || plato.vendedor?.nombre;
 
     return (
-        <article className={`tarjeta-plato${agotado ? ' tarjeta-plato--agotada' : ''}`}>
+        // Un brillo rojizo sigue al cursor sobre la tarjeta (SpotlightCard de React Bits).
+        // proximity={0}: solo trabaja la tarjeta que está bajo el cursor. Con el
+        // valor de fábrica (80 px), cada movimiento despierta a las 45 tarjetas:
+        // cruzar la grilla medía y repintaba unas 14 veces más.
+        <SpotlightCard role="article" theme="light" spotlightColor="#d32f2f" intensity={0.35}
+            spotlightSize={260} borderGlow={0.9} flare={false} proximity={0}
+            style={{ '--spotlight-card-border': 'var(--borde)', '--spotlight-card-surface': 'var(--superficie)' }}
+            className={`tarjeta-plato${agotado ? ' tarjeta-plato--agotada' : ''}`}>
             <div className="tarjeta-plato__foto">
                 <img src={imagenDelPlato(plato.categoria, plato.imagenUrl)} alt="" loading="lazy" />
                 <div className="tarjeta-plato__insignias">
@@ -49,15 +58,18 @@ function TarjetaPlato({ plato, esGestor, alAbrir, alAgregar }) {
                     {esGestor ? (
                         <span className="etiqueta tarjeta-plato__accion">Stock: {stock}</span>
                     ) : (
-                        <button type="button" className="boton boton--primario boton--icono tarjeta-plato__accion"
-                            onClick={alAgregar} disabled={agotado}
-                            aria-label={agotado ? `${plato.nombre}: agotado` : `Agregar ${plato.nombre} al carrito`}>
-                            <Icono nombre="mas" />
-                        </button>
+                        <ClickSpark sparkColor={['#d32f2f', '#ff8f80', '#ffb300']} sparkCount={10} sparkRadius={28}
+                            disabled={agotado} className="tarjeta-plato__chispas" style={{ width: 'auto', height: 'auto' }}>
+                            <button type="button" className="boton boton--primario boton--icono tarjeta-plato__accion"
+                                onClick={alAgregar} disabled={agotado}
+                                aria-label={agotado ? `${plato.nombre}: agotado` : `Agregar ${plato.nombre} al carrito`}>
+                                <Icono nombre="mas" />
+                            </button>
+                        </ClickSpark>
                     )}
                 </div>
             </div>
-        </article>
+        </SpotlightCard>
     );
 }
 

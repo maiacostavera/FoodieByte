@@ -221,6 +221,30 @@
   color: #ff8f80;
 }
 
+.portada__titulo-resto {
+  display: block;
+  /* Renglones parejos: sin "mesa" sola en el último. */
+  text-wrap: balance;
+}
+
+/* Palabra que rota en el título (RotatingText de React Bits). El componente
+   es flex: acá va en línea con el resto del texto, alineada a la base. */
+.portada__titulo .portada__rotativo {
+  display: inline-flex;
+  vertical-align: bottom;
+  margin: 0.04em 0;
+  border-radius: 0.22em;
+  box-shadow: 0 10px 30px -12px rgb(211 47 47 / 0.8);
+}
+
+/* En pantallas angostas "hamburguesa" no entra junto a "La mejor": la palabra
+   que rota va siempre en su renglón, así el título no cambia de alto. */
+@media (max-width: 600px) {
+  .portada__titulo .portada__rotativo {
+    display: flex;
+  }
+}
+
 .portada__texto {
   max-width: 520px;
   margin-top: 12px;
@@ -253,7 +277,7 @@
   line-height: 1.1;
 }
 
-.portada__cifras span {
+.portada__cifras li > span {
   font-size: 0.86rem;
   color: rgb(255 255 255 / 0.7);
 }
@@ -577,6 +601,26 @@
 .tarjeta-plato__accion {
   position: relative;
   z-index: 1;
+}
+
+/* La tarjeta es un SpotlightCard de React Bits: se le quitan el relleno y el
+   radio de fábrica y conserva el borde, la sombra y el hover del catálogo. El
+   borde lo dibuja el componente (con el color de --borde), así que el propio
+   de la tarjeta se apaga para no tener dos. */
+.tarjeta-plato.spotlight-card {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio);
+  box-shadow: none;
+}
+
+.tarjeta-plato.spotlight-card:hover {
+  box-shadow: var(--sombra-2);
+}
+
+/* El envoltorio de las chispas va por encima del enlace que cubre la tarjeta. */
+.tarjeta-plato__chispas {
+  z-index: 2;
 }
 
 .tarjeta-plato--esqueleto .esqueleto-foto {

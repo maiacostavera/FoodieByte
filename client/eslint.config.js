@@ -26,4 +26,15 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Componentes copiados de React Bits sin cambios, para poder actualizarlos.
+    // Guardan la última configuración en una ref durante el render (lo leen
+    // sus efectos) y usan <motion.span>, que esta regla no reconoce como uso.
+    files: ['src/components/reactbits/**/*.jsx'],
+    rules: {
+      'react-hooks/refs': 'off',
+      'react-hooks/purity': 'off',
+      'no-unused-vars': ['error', { varsIgnorePattern: '^([A-Z_]|motion$)' }],
+    },
+  },
 ])
