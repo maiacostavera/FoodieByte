@@ -160,11 +160,11 @@ de los casos es.
 
 ## De dónde viene el proyecto
 
-El proyecto se desarrolló con asistencia de IA y llegó a esta sesión con una
-descripción que prometía más de lo que el código hacía. Se auditó completo
-(backend, frontend, modelos, migraciones, build) y se corrigió.
+Al empezar esta etapa, la descripción del proyecto prometía más de lo que el
+código hacía. Se auditó completo (backend, frontend, modelos, migraciones, build)
+y se corrigió.
 
-Los ocho commits de la intervención, del más viejo al más nuevo:
+Los ocho commits de esa primera revisión, del más viejo al más nuevo:
 
 | Commit | Qué hizo |
 |---|---|
@@ -447,7 +447,7 @@ que decidir si se les da modelo y pantalla o se exportan aparte.
 
 La columna `precio` de la base real es `decimal(10,0)`: **sin decimales**. Un
 plato de $1200.50 ya está guardado como 1201. Los centavos se perdieron antes de
-esta intervención; la migración copia lo que hay. En el esquema nuevo la columna
+esta revisión; la migración copia lo que hay. En el esquema nuevo la columna
 es `DECIMAL(10,2)`, así que de acá en adelante los decimales se respetan.
 
 ### Cambios de esquema posteriores
