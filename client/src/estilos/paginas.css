@@ -805,7 +805,7 @@
   display: block;
   margin-bottom: 2px;
   font-size: 0.78rem;
-  color: var(--primario);
+  color: var(--primario-hover);
 }
 
 .consulta__pendiente {
@@ -1247,12 +1247,6 @@
   padding-block: 32px 24px;
 }
 
-.pie__marca img {
-  width: 104px;
-  padding: 5px 8px;
-  border-radius: 10px;
-  background: #fff;
-}
 
 .pie h3 {
   margin-bottom: 10px;

@@ -88,6 +88,16 @@ const reponerStock = async (lineas, transaction) => {
   }
 };
 
+/**
+ * Solo números o texto numérico. Number(true) da 1 y Number([2]) da 2: un
+ * carrito con esos valores se aceptaba como si fueran cantidades válidas.
+ */
+const comoNumero = (valor) => {
+  if (typeof valor === 'number') return valor;
+  if (typeof valor === 'string' && valor.trim() !== '') return Number(valor);
+  return NaN;
+};
+
 // ---------------------------------------------------------------------------
 // CREAR PEDIDO (solo foodies)
 // ---------------------------------------------------------------------------
@@ -102,11 +112,11 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
   // para no descontar stock dos veces ni bloquear la misma fila dos veces.
   const consolidados = new Map();
   for (const item of productos) {
-    const id = Number(item?.id);
+    const id = comoNumero(item?.id);
     // Number y no parseInt: parseInt("1.5") devuelve 1 y la validación de entero
     // pasa, así que una cantidad decimal se cobraba redondeada hacia abajo sin
     // avisar. Con Number, 1.5 sigue siendo 1.5 y el pedido se rechaza.
-    const cantidad = Number(item?.cantidad);
+    const cantidad = comoNumero(item?.cantidad);
 
     // Un id por encima del máximo de INTEGER haría fallar la consulta en PostgreSQL.
     if (!Number.isInteger(id) || id <= 0 || id > MAX_INTEGER) {
@@ -160,7 +170,9 @@ router.post('/', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
           throw new ErrorDeNegocio(404, `El plato con id ${platoId} ya no está disponible.`);
         }
         if (plato.stock < cantidad) {
-          throw new ErrorDeNegocio(409, `Stock insuficiente de "${plato.nombre}". Quedan ${plato.stock} unidades.`);
+          const quedan = plato.stock === 0 ? 'No quedan unidades'
+            : plato.stock === 1 ? 'Queda 1 unidad' : `Quedan ${plato.stock} unidades`;
+          throw new ErrorDeNegocio(409, `Stock insuficiente de "${plato.nombre}". ${quedan}.`);
         }
 
         await plato.decrement('stock', { by: cantidad, transaction: t });
@@ -290,6 +302,19 @@ router.put('/:id/estado', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), 
     return res.status(400).json({ mensaje: 'Estado inválido: un pedido pendiente solo puede pasar a Enviado o a Rechazado.' });
   }
 
+  const esAdmin = req.usuario.rol === ROLES.ADMIN;
+  // Un vendedor gestiona siempre sus propias líneas. El administrador puede
+  // resolver la parte de un local en particular (por ejemplo, la de un local
+  // desactivado que ya no puede entrar), sin tocar la de los demás locales
+  // del mismo pedido. Sin vendedorId, resuelve todo lo pendiente.
+  let vendedorId = esAdmin ? null : req.usuario.id;
+  if (esAdmin && req.body.vendedorId !== undefined) {
+    vendedorId = comoNumero(req.body.vendedorId);
+    if (!Number.isInteger(vendedorId) || vendedorId <= 0 || vendedorId > MAX_INTEGER) {
+      return res.status(400).json({ mensaje: 'El local indicado no es válido.' });
+    }
+  }
+
   try {
     const estadoPedido = await sequelize.transaction(async (t) => {
       // Se bloquea el pedido antes de tocar sus líneas. Si dos locales de un
@@ -301,13 +326,15 @@ router.put('/:id/estado', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), 
       if (!pedido) throw new ErrorDeNegocio(404, 'Pedido no encontrado.');
 
       const filtro = { pedidoId: pedido.id };
-      if (req.usuario.rol !== ROLES.ADMIN) filtro.vendedorId = req.usuario.id;
+      if (vendedorId !== null) filtro.vendedorId = vendedorId;
 
       const lineas = await PedidoItem.findAll({ where: filtro, transaction: t, lock: t.LOCK.UPDATE });
 
       // Sin líneas propias en este pedido, el vendedor no tiene nada que gestionar acá.
       if (lineas.length === 0) {
-        throw new ErrorDeNegocio(403, 'Este pedido no incluye productos de tu local.');
+        throw esAdmin
+          ? new ErrorDeNegocio(404, 'Este pedido no incluye productos de ese local.')
+          : new ErrorDeNegocio(403, 'Este pedido no incluye productos de tu local.');
       }
 
       const pendientes = lineas.filter(linea => linea.estado === 'Pendiente');
@@ -324,11 +351,12 @@ router.put('/:id/estado', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), 
         await reponerStock(pendientes, t);
       }
 
-      // Quien compró se entera de lo que hizo el local con su parte.
-      const local = await Usuario.findByPk(req.usuario.id, {
-        attributes: ['nombre', 'nombre_local'],
-        transaction: t
-      });
+      // Quien compró se entera de lo que pasó con su pedido. Si lo resolvió el
+      // administrador por un local, el aviso nombra a ese local; si resolvió
+      // todo el pedido, no nombra a ninguno.
+      const local = vendedorId !== null
+        ? await Usuario.findByPk(vendedorId, { attributes: ['nombre', 'nombre_local'], transaction: t })
+        : null;
       await avisos.estadoDePedidoCambiado({
         pedidoId: pedido.id,
         compradorId: pedido.usuarioId,

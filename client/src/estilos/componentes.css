@@ -432,7 +432,8 @@ select.entrada--chica {
   place-items: center;
   flex-shrink: 0;
   background: var(--primario-suave);
-  color: var(--primario);
+  /* El rojo principal sobre su fondo suave no llega a 4,5:1 con letra chica. */
+  color: var(--primario-hover);
   font-weight: 700;
   font-size: 0.85rem;
   text-transform: uppercase;

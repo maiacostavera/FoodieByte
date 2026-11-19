@@ -13,6 +13,10 @@ function Carrito({ alCerrar, alConfirmarCompra, alVerMenu }) {
     } = useFoodie();
 
     const [procesando, setProcesando] = useState(false);
+    // El botón se deshabilita con el estado, pero eso recién se aplica en el
+    // próximo render: dos envíos dentro del mismo instante pasaban los dos.
+    // La referencia cambia en el acto y frena el segundo.
+    const enviando = useRef(false);
     // La última dirección usada se recuerda en este navegador, para cada cuenta.
     const claveDireccion = `foodie_direccion_${usuario?.id}`;
     const [direccion, setDireccion] = useState(() => {
@@ -57,11 +61,14 @@ function Carrito({ alCerrar, alConfirmarCompra, alVerMenu }) {
             return;
         }
 
+        if (enviando.current) return;
+        enviando.current = true;
         setProcesando(true);
         const exito = await enviarPedidoAlServidor({ direccionEntrega: direccion.trim(), notas: notas.trim() || undefined });
         if (exito) {
             try { localStorage.setItem(claveDireccion, direccion.trim()); } catch { /* sin almacenamiento no se recuerda */ }
         }
+        enviando.current = false;
         setProcesando(false);
         // La compra descontó stock: el catálogo tiene que mostrar las cantidades nuevas.
         if (exito) alConfirmarCompra();

@@ -89,7 +89,7 @@ function Inventario({ platos, esAdmin, alAgregar, alEditar, alEliminar }) {
 
 function EtiquetaStock({ stock }) {
     if (stock === 0) return <span className="etiqueta etiqueta--peligro">Agotado</span>;
-    if (stock < 5) return <span className="etiqueta etiqueta--alerta">Quedan {stock}</span>;
+    if (stock < 5) return <span className="etiqueta etiqueta--alerta">{stock === 1 ? 'Queda 1' : `Quedan ${stock}`}</span>;
     return <span className="etiqueta">{stock} un.</span>;
 }
 
