@@ -151,7 +151,9 @@ router.get('/pedidos', async (req, res) => {
         {
           model: PedidoItem,
           as: 'items',
-          include: [{ model: Usuario, as: 'vendedor', attributes: ['id', 'nombre', 'nombre_local'] }]
+          // activo: el panel señala los pedidos pendientes de un local
+          // desactivado, que ya no puede entrar a resolverlos.
+          include: [{ model: Usuario, as: 'vendedor', attributes: ['id', 'nombre', 'nombre_local', 'activo'] }]
         }
       ],
       order: [['createdAt', 'DESC']]

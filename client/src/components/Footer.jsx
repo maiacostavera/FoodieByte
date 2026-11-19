@@ -1,12 +1,12 @@
-import logo from '../assets/logo.png';
 import Icono from './Icono';
+import Logo from './Logo';
 
 function Footer({ categorias, alElegirCategoria, alAbrirPagina }) {
     return (
         <footer className="pie">
             <div className="contenedor pie__grilla">
                 <div className="pie__marca">
-                    <img src={logo} alt="FoodieByte" />
+                    <Logo claro />
                 </div>
 
                 <nav aria-label="Categorías">

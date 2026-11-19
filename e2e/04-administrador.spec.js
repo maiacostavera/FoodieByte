@@ -46,4 +46,33 @@ test.describe('Administrador', () => {
             .getByRole('button', { name: 'Reactivar' }).click();
         await expect(fila).toContainText('Activa');
     });
+
+    test('resuelve la parte pendiente de un local desactivado y el stock vuelve', async ({ page }) => {
+        await ingresar(page, CUENTAS.admin);
+
+        // Sakura tiene un pedido pendiente en la demo. Al desactivarlo ya no puede resolverlo.
+        await page.getByRole('tab', { name: /Usuarios/ }).click();
+        const fila = page.getByRole('row', { name: /Sakura Sushi Bar/ });
+        await fila.getByRole('button', { name: 'Desactivar' }).click();
+        await page.getByRole('dialog', { name: /¿Desactivar la cuenta de/ }).getByRole('button', { name: 'Desactivar' }).click();
+        await expect(fila).toContainText('Desactivada');
+
+        await page.getByRole('tab', { name: 'Pedidos' }).click();
+        await expect(page.getByRole('status').filter({ hasText: 'pendiente de un local desactivado' })).toBeVisible();
+
+        const rechazar = page.getByRole('button', { name: /Rechazar la parte de Sakura Sushi Bar del pedido/ });
+        await expect(rechazar).toHaveCount(1);
+        await rechazar.click();
+        await page.getByRole('dialog', { name: /¿Rechazar la parte de Sakura Sushi Bar/ }).getByRole('button', { name: 'Rechazar' }).click();
+
+        await expect(page.getByText(/rechazado: las unidades volvieron al stock/)).toBeVisible();
+        await expect(rechazar).toHaveCount(0);
+        await expect(page.getByRole('status').filter({ hasText: 'local desactivado' })).toHaveCount(0);
+
+        // Se reactiva para dejar la demo como estaba.
+        await page.getByRole('tab', { name: /Usuarios/ }).click();
+        await fila.getByRole('button', { name: 'Reactivar' }).click();
+        await page.getByRole('dialog', { name: /¿Reactivar la cuenta de/ }).getByRole('button', { name: 'Reactivar' }).click();
+        await expect(fila).toContainText('Activa');
+    });
 });

@@ -9,7 +9,7 @@ const { autenticar, requiereRol } = require('../middleware/auth');
 const { validarIdDeRuta } = require('../middleware/validarId');
 const { ROLES } = require('../config/seguridad');
 const { CATEGORIAS } = require('../config/categorias');
-const { LIMITES } = require('../config/limites');
+const { LIMITES, MAX_INTEGER } = require('../config/limites');
 const { responderError } = require('../utils/errores');
 const avisos = require('../utils/notificaciones');
 const { CARPETA_PLATOS, esImagenValida, borrarArchivo } = require('../utils/imagenes');
@@ -59,6 +59,20 @@ const manejarErrorDeCarga = (err, res) => {
 
 const IMAGEN_INVALIDA = { mensaje: 'El archivo no es una imagen .jpg, .png o .webp válida.' };
 
+/**
+ * Convierte a número sin aceptar texto de más. parseFloat("12abc") da 12 y
+ * parseInt("5.7") da 5: el plato se guardaba con otro valor sin avisar. Acá
+ * "12abc" y "5,7" son inválidos, y "5.7" sigue siendo 5.7 para que la
+ * validación de entero lo rechace.
+ */
+const aNumeroEstricto = (valor) => {
+  if (typeof valor === 'number') return valor;
+  if (typeof valor !== 'string' || !/^\s*\d+(\.\d+)?\s*$/.test(valor)) return NaN;
+  return Number(valor);
+};
+
+const esStockValido = (stock) => Number.isInteger(stock) && stock >= 0 && stock <= LIMITES.stock;
+
 /** Valida y normaliza los campos que llegan desde el formulario del vendedor. */
 const validarDatosDePlato = (body, { exigirTodos }) => {
   const datos = {};
@@ -72,15 +86,17 @@ const validarDatosDePlato = (body, { exigirTodos }) => {
   }
 
   if (body.precio !== undefined || exigirTodos) {
-    const precio = parseFloat(body.precio);
-    if (Number.isNaN(precio) || precio <= 0) errores.push('El precio debe ser mayor a 0.');
+    const precio = aNumeroEstricto(body.precio);
+    if (!Number.isFinite(precio) || precio <= 0) errores.push('El precio debe ser un número mayor a 0.');
     else if (precio > LIMITES.precio) errores.push('El precio supera el máximo permitido.');
+    // La columna guarda dos decimales: 0.001 se habría guardado como $0,00.
+    else if (Math.abs(Math.round(precio * 100) - precio * 100) > 1e-6) errores.push('El precio puede tener hasta 2 decimales.');
     else datos.precio = precio;
   }
 
   if (body.stock !== undefined || exigirTodos) {
-    const stock = parseInt(body.stock, 10);
-    if (Number.isNaN(stock) || stock < 0 || stock > LIMITES.stock) {
+    const stock = aNumeroEstricto(body.stock);
+    if (!esStockValido(stock)) {
       errores.push(`El stock debe ser un número entre 0 y ${LIMITES.stock}.`);
     } else {
       datos.stock = stock;
@@ -219,6 +235,18 @@ router.post('/', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), (req, res
         ? Number(req.body.vendedorId)
         : req.usuario.id;
 
+      // El admin puede publicar a nombre de un local, pero tiene que ser un
+      // local habilitado: asignado a un cliente o a una cuenta desactivada, el
+      // plato quedaba guardado sin aparecer en ningún catálogo.
+      if (vendedorId !== req.usuario.id) {
+        const localValido = Number.isInteger(vendedorId) && vendedorId > 0 && vendedorId <= MAX_INTEGER &&
+          await Usuario.scope('habilitadoParaVender').count({ where: { id: vendedorId } });
+        if (!localValido) {
+          await descartarImagen();
+          return res.status(400).json({ mensaje: 'El plato tiene que pertenecer a un local activo.' });
+        }
+      }
+
       const nuevoPlato = await Plato.create({
         ...datos,
         vendedorId,
@@ -283,8 +311,8 @@ router.put('/:id', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), (req, r
 // ACTUALIZAR SOLO EL STOCK (desde la ficha del producto)
 router.put('/:id/stock', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), async (req, res) => {
   try {
-    const stock = parseInt(req.body.stock, 10);
-    if (Number.isNaN(stock) || stock < 0 || stock > LIMITES.stock) {
+    const stock = aNumeroEstricto(req.body.stock);
+    if (!esStockValido(stock)) {
       return res.status(400).json({ mensaje: `El stock debe ser un número entre 0 y ${LIMITES.stock}.` });
     }
 
@@ -342,12 +370,13 @@ router.get('/:id/preguntas', async (req, res) => {
 // PUBLICAR UNA PREGUNTA (solo foodies)
 router.post('/:id/preguntas', autenticar, requiereRol(ROLES.FOODIE), async (req, res) => {
   try {
-    const texto = (req.body.texto || '').trim();
+    // El body es JSON arbitrario: un número u objeto en lugar de texto daba un 500.
+    const texto = typeof req.body.texto === 'string' ? req.body.texto.trim() : '';
     if (texto.length < 3) {
       return res.status(400).json({ mensaje: 'La consulta debe tener al menos 3 caracteres.' });
     }
-    if (texto.length > 500) {
-      return res.status(400).json({ mensaje: 'La consulta no puede superar los 500 caracteres.' });
+    if (texto.length > LIMITES.pregunta) {
+      return res.status(400).json({ mensaje: `La consulta no puede superar los ${LIMITES.pregunta} caracteres.` });
     }
 
     const plato = await Plato.findByPk(req.params.id);
@@ -376,9 +405,14 @@ router.post('/:id/preguntas', autenticar, requiereRol(ROLES.FOODIE), async (req,
 // RESPONDER UNA PREGUNTA (solo el dueño del plato, o el admin)
 router.put('/:platoId/preguntas/:preguntaId', autenticar, requiereRol(ROLES.VENDEDOR, ROLES.ADMIN), async (req, res) => {
   try {
-    const respuesta = (req.body.respuesta || '').trim();
+    const respuesta = typeof req.body.respuesta === 'string' ? req.body.respuesta.trim() : '';
     if (respuesta.length < 2) {
       return res.status(400).json({ mensaje: 'La respuesta no puede estar vacía.' });
+    }
+    // La columna es TEXT y no tiene tope propio: sin este límite se guardaba
+    // cualquier largo. Es el mismo máximo que ya tenía el campo de la ficha.
+    if (respuesta.length > LIMITES.respuesta) {
+      return res.status(400).json({ mensaje: `La respuesta no puede superar los ${LIMITES.respuesta} caracteres.` });
     }
 
     const pregunta = await Pregunta.findOne({

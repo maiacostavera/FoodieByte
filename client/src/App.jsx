@@ -183,6 +183,8 @@ function App() {
             volverTrasIngresar.current = RUTAS.pedidos;
             navegar(RUTAS.ingresar);
         }
+        // Los locales y el administrador no compran: sus pedidos están en el panel.
+        if (ruta.seccion === 'pedidos' && esGestor) navegar(RUTAS.panel);
         if (ruta.seccion === 'panel' && !esGestor) {
             if (!usuario) volverTrasIngresar.current = RUTAS.panel;
             navegar(usuario ? RUTAS.inicio : RUTAS.ingresar);

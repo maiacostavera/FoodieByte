@@ -627,3 +627,31 @@
   font-size: 0.8rem;
   color: var(--texto-3);
 }
+
+/* Pedidos de la plataforma: la parte de cada local, con sus acciones */
+.partes-pedido {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.parte-pedido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.parte-pedido__nombre {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.parte-pedido__acciones {
+  justify-content: flex-start;
+}

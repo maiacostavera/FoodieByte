@@ -69,7 +69,7 @@ function ResumenVentas({ esAdmin, estadisticas, alIrA }) {
                                     <li key={plato.id}>
                                         <span>{plato.nombre}</span>
                                         <span className={`etiqueta ${plato.stock === 0 ? 'etiqueta--peligro' : 'etiqueta--alerta'}`}>
-                                            {plato.stock === 0 ? 'Agotado' : `Quedan ${plato.stock}`}
+                                            {plato.stock === 0 ? 'Agotado' : plato.stock === 1 ? 'Queda 1' : `Quedan ${plato.stock}`}
                                         </span>
                                     </li>
                                 ))}

@@ -49,6 +49,15 @@ app.use(cors({
 
 app.use(express.json({ limit: '1mb' }));
 
+// Express 5 deja req.body en undefined si el pedido llega sin cuerpo o con
+// otro tipo de contenido. Las rutas leen req.body.campo y eso fallaba con un
+// 500; con un objeto vacío, la validación de cada ruta responde un 400 claro.
+// Las rutas con imagen no cambian: multer reemplaza req.body al leer el formulario.
+app.use((req, res, next) => {
+  if (req.body === undefined || req.body === null) req.body = {};
+  next();
+});
+
 // En las pruebas, el log de cada request solo tapa los resultados.
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));

@@ -117,7 +117,9 @@ const AppProvider = ({ children }) => {
 
         // No dejamos armar un carrito que el backend va a rechazar por stock.
         if (yaEnCarrito + cantidadSeleccionada > stockDisponible) {
-            mostrarAviso(`Solo quedan ${stockDisponible} unidades de "${plato.nombre}".`, 'error');
+            mostrarAviso(stockDisponible === 1
+                ? `Solo queda 1 unidad de "${plato.nombre}".`
+                : `Solo quedan ${stockDisponible} unidades de "${plato.nombre}".`, 'error');
             return;
         }
 

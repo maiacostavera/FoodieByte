@@ -19,6 +19,8 @@ const LIMITES = {
   tiempoPrep: 50,
   // Aclaraciones del cliente para el local al hacer un pedido.
   notasPedido: 300,
+  pregunta: 500,
+  respuesta: 500,
   // Unidades máximas en stock de un plato: lo validan el modelo y las rutas.
   stock: 100,
   // Máximo que entra en una columna DECIMAL(10, 2).

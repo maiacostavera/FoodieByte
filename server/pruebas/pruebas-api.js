@@ -1248,6 +1248,202 @@ async function ejecutar() {
     });
     assert.strictEqual(respuesta.status, 403);
   });
+
+  await prueba('Un pedido sin cuerpo nunca responde 500 en las rutas que reciben datos', async () => {
+    const rutas = [
+      ['POST', '/api/usuarios/register'],
+      ['POST', '/api/usuarios/login'],
+      ['POST', '/api/usuarios/solicitar-vendedor', cliente2.token],
+      ['POST', '/api/pedidos', cliente1.token],
+      ['PUT', `/api/pedidos/${pedidoCliente1.id}/estado`, local1.token],
+      ['POST', '/api/platos', local1.token],
+      ['PUT', `/api/platos/${platoLocal1.id}`, local1.token],
+      ['PUT', `/api/platos/${platoLocal1.id}/stock`, local1.token],
+      ['POST', `/api/platos/${platoLocal1.id}/preguntas`, cliente1.token],
+      ['PUT', `/api/platos/${platoLocal1.id}/preguntas/1`, local1.token],
+      ['PUT', `/api/admin/usuarios/${cliente2.usuario.id}/rol`, admin.token]
+    ];
+    for (const [metodo, ruta, token] of rutas) {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const respuesta = await fetch(`${BASE}${ruta}`, { method: metodo, headers });
+      assert.ok(respuesta.status < 500, `${metodo} ${ruta} respondió ${respuesta.status}`);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  seccion('DATOS CON FORMATO INVÁLIDO');
+
+  await prueba('Una pregunta o una respuesta que no es texto se rechaza con 400', async () => {
+    for (const texto of [12345, { a: 1 }, ['hola que tal']]) {
+      const { estado } = await pedir('POST', `/api/platos/${platoLocal1.id}/preguntas`, {
+        token: cliente1.token, body: { texto }
+      });
+      assert.strictEqual(estado, 400, `La pregunta ${JSON.stringify(texto)} respondió ${estado}`);
+    }
+    const pregunta = await Pregunta.create({ platoId: platoLocal1.id, usuarioId: cliente1.usuario.id, texto: '¿Tiene opción sin sal?' });
+    const { estado } = await pedir('PUT', `/api/platos/${platoLocal1.id}/preguntas/${pregunta.id}`, {
+      token: local1.token, body: { respuesta: 999 }
+    });
+    assert.strictEqual(estado, 400);
+  });
+
+  await prueba('La respuesta a una consulta tiene un largo máximo', async () => {
+    const pregunta = await Pregunta.create({ platoId: platoLocal1.id, usuarioId: cliente1.usuario.id, texto: '¿Viene con aderezo?' });
+    const larga = await pedir('PUT', `/api/platos/${platoLocal1.id}/preguntas/${pregunta.id}`, {
+      token: local1.token, body: { respuesta: 'x'.repeat(501) }
+    });
+    assert.strictEqual(larga.estado, 400);
+    await pregunta.reload();
+    assert.strictEqual(pregunta.respuesta, null, 'La respuesta demasiado larga quedó guardada');
+  });
+
+  await prueba('El precio y el stock no aceptan texto de más ni decimales de más', async () => {
+    const invalidos = [
+      { precio: '12abc', stock: 5 },
+      { precio: '0.001', stock: 5 },
+      { precio: 100, stock: '5.7' },
+      { precio: 100, stock: '10abc' }
+    ];
+    for (const campos of invalidos) {
+      const { estado } = await enviarPlato('POST', '/api/platos', local1.token,
+        { nombre: `Plato inválido ${SUFIJO}`, categoria: 'Pizzas', ...campos });
+      assert.strictEqual(estado, 400, `${JSON.stringify(campos)} respondió ${estado}`);
+    }
+    const stock = await pedir('PUT', `/api/platos/${platoLocal1.id}/stock`, { token: local1.token, body: { stock: '3.9' } });
+    assert.strictEqual(stock.estado, 400);
+
+    const valido = await enviarPlato('POST', '/api/platos', local1.token,
+      { nombre: `Plato con centavos ${SUFIJO}`, categoria: 'Pizzas', precio: '1200.55', stock: '7' });
+    assert.strictEqual(valido.estado, 201);
+    creados.platos.push(valido.datos.plato.id);
+    assert.strictEqual(Number(valido.datos.plato.precio), 1200.55);
+    assert.strictEqual(valido.datos.plato.stock, 7);
+  });
+
+  await prueba('El admin solo puede asignar un plato a un local activo', async () => {
+    for (const vendedorId of [cliente1.usuario.id, 999999, 'abc']) {
+      const { estado } = await enviarPlato('POST', '/api/platos', admin.token,
+        { nombre: `Plato asignado ${SUFIJO}`, categoria: 'Pizzas', precio: 100, stock: 1, vendedorId });
+      assert.strictEqual(estado, 400, `vendedorId ${vendedorId} respondió ${estado}`);
+    }
+    const valido = await enviarPlato('POST', '/api/platos', admin.token,
+      { nombre: `Plato para Local2 ${SUFIJO}`, categoria: 'Pizzas', precio: 100, stock: 1, vendedorId: local2.usuario.id });
+    assert.strictEqual(valido.estado, 201);
+    creados.platos.push(valido.datos.plato.id);
+    assert.strictEqual(valido.datos.plato.vendedorId, local2.usuario.id);
+  });
+
+  await prueba('Una cantidad que no es un número se rechaza aunque JavaScript la convierta', async () => {
+    for (const cantidad of [true, [2], null, '']) {
+      const { estado } = await pedir('POST', '/api/pedidos', {
+        token: cliente1.token, body: { ...ENTREGA, productos: [{ id: platoLocal1.id, cantidad }] }
+      });
+      assert.strictEqual(estado, 400, `La cantidad ${JSON.stringify(cantidad)} respondió ${estado}`);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  seccion('PEDIDOS DE UN LOCAL DESACTIVADO');
+
+  await prueba('El admin resuelve solo la parte del local que indica', async () => {
+    const localA = await crearUsuario('LocalA', 'vendedor');
+    const localB = await crearUsuario('LocalB', 'vendedor');
+    const platoA = await crearPlato(localA.usuario.id, 'Plato A', 1000, 5);
+    const platoB = await crearPlato(localB.usuario.id, 'Plato B', 2000, 5);
+
+    const { datos } = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token,
+      body: { ...ENTREGA, productos: [{ id: platoA.id, cantidad: 2 }, { id: platoB.id, cantidad: 1 }] }
+    });
+    const pedidoId = datos.pedido.id;
+
+    // El local A se desactiva con su parte pendiente: ya no puede entrar a resolverla.
+    await pedir('PUT', `/api/admin/usuarios/${localA.usuario.id}/desactivar`, { token: admin.token });
+    const sinAcceso = await pedir('PUT', `/api/pedidos/${pedidoId}/estado`, {
+      token: localA.token, body: { nuevoEstado: 'Enviado' }
+    });
+    assert.strictEqual(sinAcceso.estado, 401);
+
+    // El admin rechaza la parte del local A: vuelve el stock y la parte del B sigue pendiente.
+    const rechazo = await pedir('PUT', `/api/pedidos/${pedidoId}/estado`, {
+      token: admin.token, body: { nuevoEstado: 'Rechazado', vendedorId: localA.usuario.id }
+    });
+    assert.strictEqual(rechazo.estado, 200);
+    assert.strictEqual(rechazo.datos.estadoPedido, 'Pendiente');
+
+    const lineas = await PedidoItem.findAll({ where: { pedidoId } });
+    assert.strictEqual(lineas.find(l => l.vendedorId === localA.usuario.id).estado, 'Rechazado');
+    assert.strictEqual(lineas.find(l => l.vendedorId === localB.usuario.id).estado, 'Pendiente');
+    await platoA.reload();
+    assert.strictEqual(platoA.stock, 5, 'El stock del plato rechazado no volvió');
+
+    // El aviso al cliente nombra al local cuya parte se rechazó, no al admin.
+    const aviso = await db.Notificacion.findOne({
+      where: { usuarioId: cliente1.usuario.id, pedidoId, tipo: 'pedido_rechazado' }
+    });
+    assert.ok(aviso && aviso.detalle.includes('LocalA'), `Aviso inesperado: ${aviso?.detalle}`);
+
+    // El local B sigue pudiendo despachar su parte.
+    const envio = await pedir('PUT', `/api/pedidos/${pedidoId}/estado`, {
+      token: localB.token, body: { nuevoEstado: 'Enviado' }
+    });
+    assert.strictEqual(envio.estado, 200);
+    assert.strictEqual(envio.datos.estadoPedido, 'Enviado');
+  });
+
+  await prueba('El admin también puede despachar la parte de un local desactivado', async () => {
+    const localC = await crearUsuario('LocalC', 'vendedor');
+    const platoC = await crearPlato(localC.usuario.id, 'Plato C', 1000, 5);
+    const { datos } = await pedir('POST', '/api/pedidos', {
+      token: cliente2.token, body: { ...ENTREGA, productos: [{ id: platoC.id, cantidad: 1 }] }
+    });
+    await pedir('PUT', `/api/admin/usuarios/${localC.usuario.id}/desactivar`, { token: admin.token });
+
+    const envio = await pedir('PUT', `/api/pedidos/${datos.pedido.id}/estado`, {
+      token: admin.token, body: { nuevoEstado: 'Enviado', vendedorId: localC.usuario.id }
+    });
+    assert.strictEqual(envio.estado, 200);
+    assert.strictEqual(envio.datos.estadoPedido, 'Enviado');
+    await platoC.reload();
+    assert.strictEqual(platoC.stock, 4, 'Despachar no tiene que devolver stock');
+  });
+
+  await prueba('El admin recibe 404 si el local indicado no tiene parte en el pedido, y 400 si no es válido', async () => {
+    const ajeno = await pedir('PUT', `/api/pedidos/${pedidoCliente1.id}/estado`, {
+      token: admin.token, body: { nuevoEstado: 'Enviado', vendedorId: local2.usuario.id }
+    });
+    assert.strictEqual(ajeno.estado, 404);
+    const invalido = await pedir('PUT', `/api/pedidos/${pedidoCliente1.id}/estado`, {
+      token: admin.token, body: { nuevoEstado: 'Enviado', vendedorId: 'abc' }
+    });
+    assert.strictEqual(invalido.estado, 400);
+  });
+
+  await prueba('Un local no puede usar vendedorId para resolver la parte de otro', async () => {
+    const { datos } = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token, body: { ...ENTREGA, productos: [{ id: platoLocal2.id, cantidad: 1 }] }
+    });
+    const { estado } = await pedir('PUT', `/api/pedidos/${datos.pedido.id}/estado`, {
+      token: local1.token, body: { nuevoEstado: 'Rechazado', vendedorId: local2.usuario.id }
+    });
+    assert.strictEqual(estado, 403);
+    await pedir('PUT', `/api/pedidos/${datos.pedido.id}/estado`, { token: local2.token, body: { nuevoEstado: 'Rechazado' } });
+  });
+
+  await prueba('El listado de pedidos del admin indica si cada local está activo', async () => {
+    const { datos } = await pedir('GET', '/api/admin/pedidos', { token: admin.token });
+    const conItems = datos.find(p => p.items.length > 0);
+    assert.strictEqual(typeof conItems.items[0].vendedor.activo, 'boolean');
+  });
+
+  await prueba('El mensaje de stock insuficiente usa el singular con una sola unidad', async () => {
+    const plato = await crearPlato(local1.usuario.id, 'Plato Unico', 100, 1);
+    const { estado, datos } = await pedir('POST', '/api/pedidos', {
+      token: cliente1.token, body: { ...ENTREGA, productos: [{ id: plato.id, cantidad: 2 }] }
+    });
+    assert.strictEqual(estado, 409);
+    assert.ok(datos.mensaje.includes('Queda 1 unidad.'), datos.mensaje);
+  });
 }
 
 // --- arranque ---------------------------------------------------------------

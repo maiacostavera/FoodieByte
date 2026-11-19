@@ -81,27 +81,31 @@ function PanelGestion({ categorias, alCambiarCatalogo }) {
         }
     };
 
-    const cambiarEstadoPedido = async (pedido, nuevoEstado) => {
+    // El local resuelve su propia parte. El administrador indica de qué local
+    // es la parte que resuelve (local = { id, nombre }), así no toca la de los demás.
+    const cambiarEstadoPedido = async (pedido, nuevoEstado, local = null) => {
         const rechazar = nuevoEstado === 'Rechazado';
+        const parte = local ? `la parte de ${local.nombre}` : 'tu parte';
         const confirmado = await confirmar(rechazar
             ? {
-                titulo: `¿Rechazar el pedido #${pedido.id}?`,
-                mensaje: 'Las unidades vuelven al stock y el cliente ve tu parte como rechazada. No se puede deshacer.',
-                textoConfirmar: 'Rechazar pedido',
+                titulo: local ? `¿Rechazar ${parte} del pedido #${pedido.id}?` : `¿Rechazar el pedido #${pedido.id}?`,
+                mensaje: `Las unidades vuelven al stock y el cliente ve ${parte} como rechazada. No se puede deshacer.`,
+                textoConfirmar: local ? 'Rechazar' : 'Rechazar pedido',
                 peligro: true
             }
             : {
-                titulo: `¿Marcar el pedido #${pedido.id} como enviado?`,
-                mensaje: `Confirmás que el pedido de ${pedido.usuario?.nombre || 'el cliente'} ya salió. No se puede deshacer.`,
-                textoConfirmar: 'Marcar enviado'
+                titulo: local ? `¿Despachar ${parte} del pedido #${pedido.id}?` : `¿Marcar el pedido #${pedido.id} como enviado?`,
+                mensaje: `Confirmás que ${local ? parte : 'el pedido'} de ${pedido.usuario?.nombre || 'el cliente'} ya salió. No se puede deshacer.`,
+                textoConfirmar: local ? 'Despachar' : 'Marcar enviado'
             });
         if (!confirmado) return;
 
         await ejecutar(async () => {
-            await api.put(`/pedidos/${pedido.id}/estado`, { nuevoEstado });
+            await api.put(`/pedidos/${pedido.id}/estado`, local ? { nuevoEstado, vendedorId: local.id } : { nuevoEstado });
+            const quien = local ? ` (${local.nombre})` : '';
             return rechazar
-                ? `Pedido #${pedido.id} rechazado: las unidades volvieron al stock.`
-                : `Pedido #${pedido.id} marcado como enviado.`;
+                ? `Pedido #${pedido.id}${quien} rechazado: las unidades volvieron al stock.`
+                : `Pedido #${pedido.id}${quien} marcado como enviado.`;
         }, 'No se pudo actualizar el pedido.', { cambiaCatalogo: rechazar });
     };
 
@@ -244,7 +248,7 @@ function PanelGestion({ categorias, alCambiarCatalogo }) {
                     {pestana === 'liquidaciones' && (
                         <Liquidaciones comisiones={datos.comisiones} porcentaje={datos.estadisticas.porcentajeComision} />
                     )}
-                    {pestana === 'pedidos' && <PedidosPlataforma pedidos={datos.comandas} />}
+                    {pestana === 'pedidos' && <PedidosPlataforma pedidos={datos.comandas} alCambiarEstado={cambiarEstadoPedido} />}
                 </div>
             ) : !error && (
                 <div className="grilla-kpi" aria-hidden="true">
