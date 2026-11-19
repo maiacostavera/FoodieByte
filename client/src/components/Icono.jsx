@@ -18,6 +18,8 @@ const TRAZOS = {
     'flecha-derecha': <path d="M5 12h14M12 5l7 7-7 7" />,
     fuego: <path d="M12 22c4 0 7-2.7 7-6.6 0-3.7-2.6-6.2-4.3-8.4-.4 2-1.6 3.3-2.7 3.9.3-3.2-1.3-6.3-4-8.9C8.3 5.6 5 9.4 5 15.4 5 19.3 8 22 12 22Z" />,
     grafico: <><path d="M3 3v18h18" /><path d="m7 15 4-4 3 3 5-6" /></>,
+    'tendencia-sube': <><path d="m3 17 6-6 4 4 8-8" /><path d="M15 7h6v6" /></>,
+    'tendencia-baja': <><path d="m3 7 6 6 4-4 8 8" /><path d="M15 17h6v-6" /></>,
     hoja: <><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z" /><path d="M2 21c0-3 1.9-5.4 5.1-6" /></>,
     imagen: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>,
     info: <><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></>,
