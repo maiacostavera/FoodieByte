@@ -1,5 +1,6 @@
 import { formatearMoneda } from '../../utils/formato';
 import Icono from '../Icono';
+import CountUp from '../reactbits/CountUp';
 import GraficoVentas from './GraficoVentas';
 
 /** Pestaña "Resumen": indicadores, ventas de las últimas dos semanas y ranking de platos. */
@@ -10,15 +11,15 @@ function ResumenVentas({ esAdmin, estadisticas, alIrA }) {
 
     const indicadores = esAdmin
         ? [
-            { titulo: 'Ventas despachadas', valor: formatearMoneda(estadisticas.volumenVentas), icono: 'billete', tono: 'primario', detalle: 'Total histórico de la plataforma' },
-            { titulo: `Ganancia (comisión ${Math.round(estadisticas.porcentajeComision * 100)} %)`, valor: formatearMoneda(estadisticas.gananciasPlataforma), icono: 'grafico', tono: 'exito', detalle: 'Sobre lo despachado' },
+            { titulo: 'Ventas despachadas', valor: estadisticas.volumenVentas, moneda: true, icono: 'billete', tono: 'primario', detalle: 'Total histórico de la plataforma' },
+            { titulo: `Ganancia (comisión ${Math.round(estadisticas.porcentajeComision * 100)} %)`, valor: estadisticas.gananciasPlataforma, moneda: true, icono: 'grafico', tono: 'exito', detalle: 'Sobre lo despachado' },
             { titulo: 'Pedidos enviados', valor: `${estadisticas.pedidosEnviados} de ${estadisticas.pedidosTotales}`, icono: 'recibo', tono: 'info' },
             { titulo: 'Locales activos', valor: estadisticas.localesActivos, icono: 'tienda' },
             { titulo: 'Usuarios activos', valor: estadisticas.usuariosTotales, icono: 'usuarios' },
             { titulo: 'Platos publicados', valor: estadisticas.platosPublicados, icono: 'plato' }
         ]
         : [
-            { titulo: 'Facturado', valor: formatearMoneda(estadisticas.totalFacturado), icono: 'billete', tono: 'primario', detalle: 'Pedidos despachados, histórico' },
+            { titulo: 'Facturado', valor: estadisticas.totalFacturado, moneda: true, icono: 'billete', tono: 'primario', detalle: 'Pedidos despachados, histórico' },
             { titulo: 'Pedidos recibidos', valor: estadisticas.totalPedidos, icono: 'recibo', tono: 'info' },
             {
                 titulo: 'Pendientes de envío', valor: estadisticas.pedidosPendientes, icono: 'reloj',
@@ -82,14 +83,26 @@ function ResumenVentas({ esAdmin, estadisticas, alIrA }) {
     );
 }
 
-function Indicador({ titulo, valor, icono, tono, detalle }) {
+/**
+ * Las cifras enteras cuentan hasta su valor al aparecer (CountUp de React
+ * Bits), con el punto de miles de siempre. Un importe con centavos se muestra
+ * fijo: el componente usa punto decimal y acá va la coma.
+ */
+function Cifra({ valor, moneda }) {
+    if (typeof valor === 'number' && Number.isInteger(valor)) {
+        return <CountUp to={valor} separator="." prefix={moneda ? '$' : ''} duration={1.2} />;
+    }
+    return moneda ? formatearMoneda(valor) : valor;
+}
+
+function Indicador({ titulo, valor, moneda, icono, tono, detalle }) {
     return (
         <div className={`kpi tarjeta${tono ? ` kpi--${tono}` : ''}`}>
             <div className="kpi__cabecera">
                 <span>{titulo}</span>
                 <span className="kpi__icono"><Icono nombre={icono} tamano={18} /></span>
             </div>
-            <strong className="kpi__valor">{valor}</strong>
+            <strong className="kpi__valor"><Cifra valor={valor} moneda={moneda} /></strong>
             {detalle && <span className="kpi__detalle">{detalle}</span>}
         </div>
     );

@@ -4,8 +4,16 @@ const { CUENTAS } = require('./entorno');
 test.describe('Visitante, sin sesión', () => {
     test('la portada muestra el catálogo completo de la demo', async ({ page }) => {
         await page.goto('/');
-        await expect(page.getByRole('heading', { level: 1 })).toContainText('La mejor comida');
-        await expect(page.locator('.portada__cifras strong').first()).toHaveText('45');
+        // La palabra del título rota y las cifras cuentan con un odómetro: se
+        // verifica lo que lee un lector de pantalla, sin las letras y dígitos
+        // decorativos que el componente oculta con aria-hidden.
+        await expect(page.getByRole('heading', { level: 1 }))
+            .toHaveAccessibleName(/^La mejor (comida|pizza|hamburguesa|parrilla|empanada|sushi) de tu barrio, directo a tu mesa$/);
+        await expect(page.locator('.portada__cifras li').first()).toMatchAriaSnapshot(`
+            - listitem:
+              - strong: "45"
+              - text: platos para elegir
+        `);
         await expect(page.locator('.grilla-platos .tarjeta-plato')).toHaveCount(45);
         await expect(page.getByRole('group', { name: 'Locales' }).getByRole('button')).toHaveCount(7);
 
