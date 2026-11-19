@@ -55,7 +55,7 @@ function Inventario({ platos, esAdmin, alAgregar, alEditar, alEliminar }) {
                                                 <strong>{plato.nombre}</strong>
                                                 <span>
                                                     {plato.categoria}
-                                                    {plato.es_vegano && ' · Vegano'}
+                                                    {plato.es_vegano && plato.categoria !== 'Vegano' && ' · Vegano'}
                                                     {plato.es_sintacc && ' · Sin TACC'}
                                                 </span>
                                             </div>
