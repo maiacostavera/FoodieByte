@@ -8,7 +8,11 @@ test('en el celular se puede buscar, agregar y abrir el carrito sin que nada se 
     await expect(page.getByRole('searchbox', { name: 'Buscar en el menú' })).toBeVisible();
 
     // Una sola columna de tarjetas, que ocupa casi todo el ancho.
-    const primera = await page.locator('.grilla-platos .tarjeta-plato').first().boundingBox();
+    // Se espera a una tarjeta real: mientras carga, la grilla muestra
+    // esqueletos con la misma clase que se reemplazan al llegar los platos.
+    const tarjeta = page.locator('.grilla-platos .tarjeta-plato:not(.tarjeta-plato--esqueleto)').first();
+    await expect(tarjeta).toBeVisible();
+    const primera = await tarjeta.boundingBox();
     const ancho = page.viewportSize().width;
     expect(primera.width).toBeGreaterThan(ancho * 0.8);
 
